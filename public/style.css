@@ -189,6 +189,14 @@ td.today-label::after {
   content: ' · hôm nay';
   font-size: 0.68rem; color: var(--accent); font-family: 'Inter', sans-serif; font-weight: 600;
 }
+td.month-label::after {
+  content: ' · tháng này';
+  font-size: 0.68rem; color: var(--accent); font-family: 'Inter', sans-serif; font-weight: 600;
+}
+td.year-label::after {
+  content: ' · năm nay';
+  font-size: 0.68rem; color: var(--accent); font-family: 'Inter', sans-serif; font-weight: 600;
+}
 
 /* ── RESPONSIVE ── */
 @media (max-width: 900px) {

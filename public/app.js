@@ -77,7 +77,7 @@ function renderChart(id, labels, data, keys) {
 }
 
 // ── Table builders ─────────────────────────────────────
-function buildTableRows(tbodyId, keys, data, labelFn, todayKey) {
+function buildTableRows(tbodyId, keys, data, labelFn, activeKey, activeClass) {
   const tbody = $(tbodyId);
   tbody.innerHTML = '';
   [...keys].reverse().forEach(k => {
@@ -85,9 +85,9 @@ function buildTableRows(tbodyId, keys, data, labelFn, todayKey) {
     const dl = d.fptDl + d.vttDl;
     const ul = d.fptUl + d.vttUl;
     const tr = document.createElement('tr');
-    if (k === todayKey) { tr.classList.add('today-row'); }
+    if (k === activeKey) { tr.classList.add('today-row'); }
     tr.innerHTML = `
-      <td class="${k === todayKey ? 'today-label' : ''}">${labelFn(k)}</td>
+      <td class="${k === activeKey ? activeClass : ''}">${labelFn(k)}</td>
       <td class="fpt-color">${kbToHuman(d.fptDl)}</td>
       <td class="fpt-color">${kbToHuman(d.fptUl)}</td>
       <td class="vtt-color">${kbToHuman(d.vttDl)}</td>
@@ -163,7 +163,7 @@ async function loadDaily(days) {
   const keys = Object.keys(raw).sort();
   const labels = keys.map(k => { const [y,m,d] = k.split('-'); return `${d}/${m}`; });
   renderChart('dailyChart', labels, raw, keys);
-  buildTableRows('dailyTableBody', keys, raw, labelDay, todayKey());
+  buildTableRows('dailyTableBody', keys, raw, labelDay, todayKey(), 'today-label');
 }
 
 // ── Monthly ───────────────────────────────────────────
@@ -188,7 +188,7 @@ async function loadMonthly() {
   const keys = Object.keys(raw).sort();
   const labels = keys.map(k => labelMonth(k));
   renderChart('monthlyChart', labels, raw, keys);
-  buildTableRows('monthlyTableBody', keys, raw, labelMonth, thisMonthKey());
+  buildTableRows('monthlyTableBody', keys, raw, labelMonth, thisMonthKey(), 'month-label');
 }
 
 // ── Yearly ────────────────────────────────────────────
@@ -221,7 +221,7 @@ async function loadYearly() {
   const keys = Object.keys(raw).sort();
   const labels = keys.map(k => labelYear(k));
   renderChart('yearlyChart', labels, raw, keys);
-  buildTableRows('yearlyTableBody', keys, raw, labelYear, thisYearKey());
+  buildTableRows('yearlyTableBody', keys, raw, labelYear, thisYearKey(), 'year-label');
 }
 
 // ── Tab switching ──────────────────────────────────────
