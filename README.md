@@ -1,17 +1,19 @@
 # MikroTik Traffic Dashboard
 
-A lightweight, near real-time traffic monitoring dashboard for MikroTik routers. It consists of two parts:
-1. **MikroTik Scripts**: Runs on the router to capture traffic data and send daily/monthly reports via Telegram.
-2. **Node.js Dashboard**: Runs on a separate Linux server to poll the router, store 30-day history, and serve a beautiful web UI.
+*[Read in English below](#english)*
+
+Một hệ thống dashboard nhẹ nhàng giúp theo dõi lưu lượng mạng (traffic) gần như thời gian thực cho router MikroTik. Hệ thống gồm 2 thành phần:
+1. **MikroTik Scripts**: Chạy trực tiếp trên router để thu thập dữ liệu lưu lượng và gửi báo cáo ngày/tháng qua Telegram.
+2. **Node.js Dashboard**: Chạy trên một server Linux riêng biệt để lấy dữ liệu từ router, lưu trữ lịch sử theo ngày, tháng, năm và hiển thị giao diện web trực quan.
 
 ---
 
-## Part 1: MikroTik Setup
+## Phần 1: Cài đặt trên MikroTik
 
-### 1. Create the Collector Script
-This script collects data from `WAN_FPT` and `WAN_VIETTEL` interfaces and saves it to a file. 
+### 1. Tạo Script thu thập dữ liệu (Collector)
+Script này thu thập dữ liệu từ các cổng `WAN_FPT` và `WAN_VIETTEL` rồi lưu vào một file text.
 
-Open **Winbox → System → Scripts → Add New**, name it `traffic-collector`, and paste this source:
+Mở **Winbox → System → Scripts → Add New**, đặt tên là `traffic-collector`, và dán đoạn code sau:
 
 ```routeros
 # ============================================================
@@ -64,15 +66,15 @@ Open **Winbox → System → Scripts → Add New**, name it `traffic-collector`,
 :set trafDayRxVtl $rxVtl; :set trafDayTxVtl $txVtl
 ```
 
-Create a Scheduler to run it every 10 minutes:
+Tạo một Scheduler để chạy script này mỗi 10 phút:
 ```routeros
 /system scheduler add name="schedule-traffic-collector" start-time=startup interval=10m on-event="/system script run traffic-collector"
 ```
 
-### 2. Create the Reporter Script
-This script sends the daily report via Telegram at 00:01 and clears the daily counters. On the 1st of every month, it also sends a monthly report and clears the monthly counters.
+### 2. Tạo Script gửi báo cáo (Reporter)
+Script này sẽ gửi báo cáo ngày qua Telegram vào lúc 00:01 và reset bộ đếm ngày. Vào ngày mùng 1 hàng tháng, nó sẽ gửi thêm báo cáo tổng kết tháng và reset bộ đếm tháng.
 
-Name: `daily-traffic-report`
+Tên script: `daily-traffic-report`
 
 ```routeros
 # ============================================================
@@ -173,6 +175,77 @@ Name: `daily-traffic-report`
     :log error "$scriptName: Data file bi loi!"
 }
 ```
+
+Tạo một Scheduler để chạy script này vào lúc 00:01 mỗi ngày:
+```routeros
+/system scheduler add name="schedule-daily-traffic" start-time=00:01:00 interval=1d on-event="/system script run daily-traffic-report"
+```
+
+### 3. Tạo User API
+Tạo một tài khoản chỉ-đọc (read-only) trên MikroTik để Dashboard có thể lấy file `traf-data.txt` qua REST API một cách an toàn.
+```routeros
+/user group add name=api-read policy=read,api,!write,!policy,!test,!password,!sniff,!sensitive,!romon,!rest-api
+/user add name=api-user password=YOUR_PASSWORD group=api-read allowed-address=YOUR_SERVER_IP
+```
+Đảm bảo rằng dịch vụ `www` hoặc `api` đã được bật trong mục `/ip services`.
+
+---
+
+## Phần 2: Cài đặt Server Dashboard
+
+Bạn cần một máy chủ Linux đã cài đặt sẵn Node.js (ví dụ: Debian/Ubuntu).
+
+1. Clone kho lưu trữ này hoặc copy thư mục dự án vào `/opt/traffic-dashboard`.
+2. Mở file `server.js` và thay thế `YOUR_MIKROTIK_IP`, `YOUR_MIKROTIK_USER`, và `YOUR_MIKROTIK_PASSWORD` bằng thông tin tài khoản bạn vừa tạo ở Bước 3.
+3. Cài đặt các thư viện cần thiết:
+   ```bash
+   cd /opt/traffic-dashboard
+   npm install
+   ```
+4. Thiết lập systemd service để Dashboard chạy ngầm 24/7:
+   ```bash
+   # Copy file service vào hệ thống
+   cp traffic-dashboard.service /etc/systemd/system/
+   
+   # Bật và khởi động service
+   systemctl daemon-reload
+   systemctl enable traffic-dashboard
+   systemctl start traffic-dashboard
+   ```
+5. Truy cập Dashboard qua trình duyệt tại địa chỉ `http://YOUR_SERVER_IP:3001`
+
+
+---
+<a name="english"></a>
+
+# MikroTik Traffic Dashboard (English)
+
+A lightweight, near real-time traffic monitoring dashboard for MikroTik routers. It consists of two parts:
+1. **MikroTik Scripts**: Runs on the router to capture traffic data and send daily/monthly reports via Telegram.
+2. **Node.js Dashboard**: Runs on a separate Linux server to poll the router, store history by day, month, and year, and serve a beautiful web UI.
+
+---
+
+## Part 1: MikroTik Setup
+
+### 1. Create the Collector Script
+This script collects data from `WAN_FPT` and `WAN_VIETTEL` interfaces and saves it to a file. 
+
+Open **Winbox → System → Scripts → Add New**, name it `traffic-collector`, and paste this source:
+
+*(Use the script from step 1 in the Vietnamese section)*
+
+Create a Scheduler to run it every 10 minutes:
+```routeros
+/system scheduler add name="schedule-traffic-collector" start-time=startup interval=10m on-event="/system script run traffic-collector"
+```
+
+### 2. Create the Reporter Script
+This script sends the daily report via Telegram at 00:01 and clears the daily counters. On the 1st of every month, it also sends a monthly report and clears the monthly counters.
+
+Name: `daily-traffic-report`
+
+*(Use the script from step 2 in the Vietnamese section)*
 
 Create a Scheduler to run it every day at 00:01:
 ```routeros
