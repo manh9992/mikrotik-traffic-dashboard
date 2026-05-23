@@ -2,6 +2,8 @@
 
 *[Read in English below](#english)*
 
+![Dashboard Screenshot](screenshot.png)
+
 Một hệ thống dashboard nhẹ nhàng giúp theo dõi lưu lượng mạng (traffic) gần như thời gian thực cho router MikroTik. Hệ thống gồm 2 thành phần:
 1. **MikroTik Scripts**: Chạy trực tiếp trên router để thu thập dữ liệu lưu lượng và gửi báo cáo ngày/tháng qua Telegram.
 2. **Node.js Dashboard**: Chạy trên một server Linux riêng biệt để lấy dữ liệu từ router, lưu trữ lịch sử theo ngày, tháng, năm và hiển thị giao diện web trực quan.
@@ -219,6 +221,8 @@ Bạn cần một máy chủ Linux đã cài đặt sẵn Node.js (ví dụ: Deb
 <a name="english"></a>
 
 # MikroTik Traffic Dashboard (English)
+
+![Dashboard Screenshot](screenshot.png)
 
 A lightweight, near real-time traffic monitoring dashboard for MikroTik routers. It consists of two parts:
 1. **MikroTik Scripts**: Runs on the router to capture traffic data and send daily/monthly reports via Telegram.
