@@ -155,9 +155,9 @@ main { max-width: 1280px; margin: 0 auto; padding: 24px 24px; display: flex; fle
 /* ── TABLE ── */
 .table-card {
   background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: 12px; overflow: hidden;
+  border-radius: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch;
 }
-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+table { width: 100%; border-collapse: collapse; font-size: 0.82rem; white-space: nowrap; }
 thead tr {
   background: var(--bg-card2);
   border-bottom: 1px solid var(--border);
