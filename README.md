@@ -17,7 +17,7 @@ Mở **Winbox → System → Scripts → Add New**, đặt tên là `traffic-col
 
 ```routeros
 # ============================================================
-# 1. SCRIPT COLLECTOR (Chay moi 10 phut)
+# 1. SCRIPT COLLECTOR (Chay moi 5 phut)
 # ============================================================
 :local scriptName "traffic-collector"
 :local mb 1048576
@@ -66,9 +66,9 @@ Mở **Winbox → System → Scripts → Add New**, đặt tên là `traffic-col
 :set trafDayRxVtl $rxVtl; :set trafDayTxVtl $txVtl
 ```
 
-Tạo một Scheduler để chạy script này mỗi 10 phút:
+Tạo một Scheduler để chạy script này mỗi 5 phút:
 ```routeros
-/system scheduler add name="schedule-traffic-collector" start-time=startup interval=10m on-event="/system script run traffic-collector"
+/system scheduler add name="schedule-traffic-collector" start-time=startup interval=5m on-event="/system script run traffic-collector"
 ```
 
 ### 2. Tạo Script gửi báo cáo (Reporter)
@@ -235,9 +235,9 @@ Open **Winbox → System → Scripts → Add New**, name it `traffic-collector`,
 
 *(Use the script from step 1 in the Vietnamese section)*
 
-Create a Scheduler to run it every 10 minutes:
+Create a Scheduler to run it every 5 minutes:
 ```routeros
-/system scheduler add name="schedule-traffic-collector" start-time=startup interval=10m on-event="/system script run traffic-collector"
+/system scheduler add name="schedule-traffic-collector" start-time=startup interval=5m on-event="/system script run traffic-collector"
 ```
 
 ### 2. Create the Reporter Script
