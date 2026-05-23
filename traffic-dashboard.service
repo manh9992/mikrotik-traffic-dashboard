@@ -1,0 +1,18 @@
+[Unit]
+Description=MikroTik Traffic Dashboard
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/traffic-dashboard
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+RestartSec=5
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=traffic-dashboard
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
