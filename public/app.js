@@ -62,8 +62,14 @@ function chartOptions() {
   };
 }
 
-// ── Charts state ───────────────────────────────────────
+// ── Charts & State ─────────────────────────────────────
 const charts = { daily: null, monthly: null, yearly: null };
+const rawCache = { daily: null, monthly: null, yearly: null };
+const sortConfig = {
+  dailyTable: { col: 'date', dir: 'desc' },
+  monthlyTable: { col: 'date', dir: 'desc' },
+  yearlyTable: { col: 'date', dir: 'desc' }
+};
 
 function renderChart(id, labels, data, keys) {
   const ctx = $(id).getContext('2d');
@@ -80,10 +86,31 @@ function renderChart(id, labels, data, keys) {
 function buildTableRows(tbodyId, keys, data, labelFn, activeKey, activeClass) {
   const tbody = $(tbodyId);
   tbody.innerHTML = '';
-  [...keys].reverse().forEach(k => {
+  const tableId = tbodyId.replace('Body', '');
+  const { col, dir } = sortConfig[tableId] || { col: 'date', dir: 'desc' };
+
+  let rows = keys.map(k => {
     const d = data[k];
     const dl = d.fptDl + d.vttDl;
     const ul = d.fptUl + d.vttUl;
+    return { k, d, dl, ul,
+      date: k,
+      fptDl: d.fptDl, fptUl: d.fptUl,
+      vttDl: d.vttDl, vttUl: d.vttUl,
+      totalDl: dl, totalUl: ul, total: dl + ul
+    };
+  });
+  
+  rows.sort((a, b) => {
+    let valA = a[col];
+    let valB = b[col];
+    if (valA < valB) return dir === 'asc' ? -1 : 1;
+    if (valA > valB) return dir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  rows.forEach(r => {
+    const { k, d, dl, ul } = r;
     const tr = document.createElement('tr');
     if (k === activeKey) { tr.classList.add('today-row'); }
     tr.innerHTML = `
@@ -160,6 +187,7 @@ async function loadDaily(days) {
     raw[tk] = { fptDl: td.fptDl, fptUl: td.fptUl, vttDl: td.vttDl, vttUl: td.vttUl };
   } catch(e) {}
 
+  rawCache.daily = raw;
   const keys = Object.keys(raw).sort();
   const labels = keys.map(k => { const [y,m,d] = k.split('-'); return `${d}/${m}`; });
   renderChart('dailyChart', labels, raw, keys);
@@ -185,6 +213,7 @@ async function loadMonthly() {
     }
   } catch(e) {}
 
+  rawCache.monthly = raw;
   const keys = Object.keys(raw).sort();
   const labels = keys.map(k => labelMonth(k));
   renderChart('monthlyChart', labels, raw, keys);
@@ -218,6 +247,7 @@ async function loadYearly() {
     raw[yk] = yearTotal;
   } catch(e) {}
 
+  rawCache.yearly = raw;
   const keys = Object.keys(raw).sort();
   const labels = keys.map(k => labelYear(k));
   renderChart('yearlyChart', labels, raw, keys);
@@ -246,6 +276,45 @@ document.querySelectorAll('.range-btn').forEach(btn => {
     document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     await loadDaily(parseInt(btn.dataset.days));
+  });
+});
+
+// ── Sorting ───────────────────────────────────────────
+document.querySelectorAll('.sortable').forEach(th => {
+  th.addEventListener('click', () => {
+    const tableId = th.closest('table').id;
+    const col = th.dataset.sort;
+    
+    // Update active class on headers
+    th.closest('tr').querySelectorAll('.sortable').forEach(el => {
+      if (el !== th) { el.classList.remove('sort-asc', 'sort-desc'); }
+    });
+    
+    let dir = 'desc';
+    if (th.classList.contains('sort-desc')) {
+      dir = 'asc';
+      th.classList.remove('sort-desc');
+      th.classList.add('sort-asc');
+    } else {
+      th.classList.remove('sort-asc');
+      th.classList.add('sort-desc');
+    }
+    
+    sortConfig[tableId] = { col, dir };
+    
+    // Re-render table using cached raw data
+    if (tableId === 'dailyTable' && rawCache.daily) {
+       const keys = Object.keys(rawCache.daily).sort();
+       buildTableRows('dailyTableBody', keys, rawCache.daily, labelDay, todayKey(), 'today-label');
+    }
+    else if (tableId === 'monthlyTable' && rawCache.monthly) {
+       const keys = Object.keys(rawCache.monthly).sort();
+       buildTableRows('monthlyTableBody', keys, rawCache.monthly, labelMonth, thisMonthKey(), 'month-label');
+    }
+    else if (tableId === 'yearlyTable' && rawCache.yearly) {
+       const keys = Object.keys(rawCache.yearly).sort();
+       buildTableRows('yearlyTableBody', keys, rawCache.yearly, labelYear, thisYearKey(), 'year-label');
+    }
   });
 });
 

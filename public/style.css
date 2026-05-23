@@ -198,6 +198,27 @@ td.year-label::after {
   font-size: 0.68rem; color: var(--accent); font-family: 'Inter', sans-serif; font-weight: 600;
 }
 
+/* ── SORT ── */
+.sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s;
+}
+.sortable:hover {
+  background: var(--border);
+}
+.sort-icon::after {
+  content: '↕';
+  opacity: 0.3;
+  margin-left: 4px;
+}
+.sort-asc .sort-icon::after {
+  content: '↑'; opacity: 1; color: var(--accent);
+}
+.sort-desc .sort-icon::after {
+  content: '↓'; opacity: 1; color: var(--accent);
+}
+
 /* ── RESPONSIVE ── */
 @media (max-width: 900px) {
   .summary-section { grid-template-columns: 1fr; }
