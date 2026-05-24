@@ -108,7 +108,11 @@
     <!-- History Tabs -->
     <section class="history-section">
       <div class="tab-bar">
-        <button class="tab-btn active" data-tab="daily">
+        <button class="tab-btn active" data-tab="hourly">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Theo giờ
+        </button>
+        <button class="tab-btn" data-tab="daily">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
           Theo ngày
         </button>
@@ -122,8 +126,12 @@
         </button>
 
         <div class="tab-right">
+          <!-- hourly sub-range -->
+          <div class="date-filter" id="hourlyFilter" style="display:flex;">
+            <input type="date" id="hourlyDate" />
+          </div>
           <!-- daily sub-range -->
-          <div class="sub-range" id="subDaily">
+          <div class="sub-range" id="subDaily" style="display:none;">
             <button class="range-btn active" data-days="7">7 ngày</button>
             <button class="range-btn" data-days="14">14 ngày</button>
             <button class="range-btn" data-days="30">30 ngày</button>
@@ -131,8 +139,32 @@
         </div>
       </div>
 
+      <!-- Hourly Tab -->
+      <div class="tab-pane active" id="tabHourly">
+        <div class="chart-card">
+          <canvas id="hourlyChart" height="110"></canvas>
+        </div>
+        <div class="table-card">
+          <table id="hourlyTable">
+            <thead>
+              <tr>
+                <th data-sort="date" class="sortable sort-desc">Giờ <span class="sort-icon"></span></th>
+                <th data-sort="fptDl" class="fpt-color sortable">FPT (DL) <span class="sort-icon"></span></th>
+                <th data-sort="fptUl" class="fpt-color sortable">FPT (UL) <span class="sort-icon"></span></th>
+                <th data-sort="vttDl" class="vtt-color sortable">Viettel (DL) <span class="sort-icon"></span></th>
+                <th data-sort="vttUl" class="vtt-color sortable">Viettel (UL) <span class="sort-icon"></span></th>
+                <th data-sort="totalDl" class="total-color sortable">Tổng (DL) <span class="sort-icon"></span></th>
+                <th data-sort="totalUl" class="total-color sortable">Tổng (UL) <span class="sort-icon"></span></th>
+                <th data-sort="total" class="total-color sortable">Tổng <span class="sort-icon"></span></th>
+              </tr>
+            </thead>
+            <tbody id="hourlyTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- Daily Tab -->
-      <div class="tab-pane active" id="tabDaily">
+      <div class="tab-pane" id="tabDaily">
         <div class="chart-card">
           <canvas id="dailyChart" height="110"></canvas>
         </div>

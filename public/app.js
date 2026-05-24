@@ -63,9 +63,10 @@ function chartOptions() {
 }
 
 // ── Charts & State ─────────────────────────────────────
-const charts = { daily: null, monthly: null, yearly: null };
-const rawCache = { daily: null, monthly: null, yearly: null };
+const charts = { hourly: null, daily: null, monthly: null, yearly: null };
+const rawCache = { hourly: null, daily: null, monthly: null, yearly: null };
 const sortConfig = {
+  hourlyTable: { col: 'date', dir: 'desc' },
   dailyTable: { col: 'date', dir: 'desc' },
   monthlyTable: { col: 'date', dir: 'desc' },
   yearlyTable: { col: 'date', dir: 'desc' }
@@ -128,6 +129,7 @@ function buildTableRows(tbodyId, keys, data, labelFn, activeKey, activeClass) {
 }
 
 // ── Date label helpers ─────────────────────────────────
+function labelHour(k) { return k; }
 function labelDay(k)  {
   const [y, m, d] = k.split('-');
   return `${d}/${m}/${y}`;
@@ -171,6 +173,29 @@ async function fetchToday() {
     $('statusBadge').classList.add('offline');
     $('statusText').textContent = 'Offline';
   }
+}
+
+// ── Hourly ─────────────────────────────────────────────
+async function loadHourly(dayStr) {
+  const url = dayStr ? `/api/hourly?day=${dayStr}` : `/api/hourly`;
+  const r = await fetch(url);
+  const raw = await r.json();
+  rawCache.hourly = raw;
+  renderHourly(raw);
+}
+
+function getNonEmptyKeys(raw) {
+  return Object.keys(raw).filter(k => {
+    const d = raw[k];
+    return d.fptDl > 0 || d.fptUl > 0 || d.vttDl > 0 || d.vttUl > 0;
+  });
+}
+
+function renderHourly(raw) {
+  if (!raw) return;
+  const keys = getNonEmptyKeys(raw).sort();
+  renderChart('hourlyChart', keys, raw, keys);
+  buildTableRows('hourlyTableBody', keys, raw, labelHour, null, '');
 }
 
 // ── Daily ─────────────────────────────────────────────
@@ -255,7 +280,7 @@ async function loadYearly() {
 }
 
 // ── Tab switching ──────────────────────────────────────
-let activeTab = 'daily';
+let activeTab = 'hourly';
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -263,11 +288,20 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.classList.add('active');
     activeTab = btn.dataset.tab;
     $(`tab${activeTab.charAt(0).toUpperCase()+activeTab.slice(1)}`).classList.add('active');
+    
     $('subDaily').style.display = activeTab === 'daily' ? 'flex' : 'none';
+    $('hourlyFilter').style.display = activeTab === 'hourly' ? 'flex' : 'none';
+
+    if (activeTab === 'hourly') await loadHourly($('hourlyDate').value);
     if (activeTab === 'daily') await loadDaily(currentDays);
     if (activeTab === 'monthly') await loadMonthly();
     if (activeTab === 'yearly') await loadYearly();
   });
+});
+
+// Hourly date picker
+$('hourlyDate').addEventListener('change', async (e) => {
+  await loadHourly(e.target.value);
 });
 
 // Daily sub-range buttons
@@ -303,7 +337,11 @@ document.querySelectorAll('.sortable').forEach(th => {
     sortConfig[tableId] = { col, dir };
     
     // Re-render table using cached raw data
-    if (tableId === 'dailyTable' && rawCache.daily) {
+    if (tableId === 'hourlyTable' && rawCache.hourly) {
+       const keys = getNonEmptyKeys(rawCache.hourly).sort();
+       buildTableRows('hourlyTableBody', keys, rawCache.hourly, labelHour, null, '');
+    }
+    else if (tableId === 'dailyTable' && rawCache.daily) {
        const keys = Object.keys(rawCache.daily).sort();
        buildTableRows('dailyTableBody', keys, rawCache.daily, labelDay, todayKey(), 'today-label');
     }
@@ -320,15 +358,19 @@ document.querySelectorAll('.sortable').forEach(th => {
 
 // ── Init ──────────────────────────────────────────────
 async function init() {
+  const localNow = new Date(Date.now() + 7 * 3600 * 1000);
+  $('hourlyDate').value = localNow.toISOString().slice(0, 10);
+
   await fetchToday();
-  await loadDaily(7);
+  await loadHourly($('hourlyDate').value);
 }
 init();
 
 // Refresh every 60s
 setInterval(async () => {
   await fetchToday();
-  if (activeTab === 'daily') await loadDaily(currentDays);
+  if (activeTab === 'hourly') await loadHourly($('hourlyDate').value);
+  else if (activeTab === 'daily') await loadDaily(currentDays);
   else if (activeTab === 'monthly') await loadMonthly();
   else if (activeTab === 'yearly') await loadYearly();
 }, 60000);

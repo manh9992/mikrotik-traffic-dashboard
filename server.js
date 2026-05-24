@@ -8,9 +8,9 @@ const PORT = 3001;
 const HISTORY_FILE = path.join(__dirname, 'history.json');
 
 // MikroTik config
-const MT_HOST = 'YOUR_MIKROTIK_IP'; // e.g. '192.168.88.1'
-const MT_USER = 'YOUR_MIKROTIK_USER';
-const MT_PASS = 'YOUR_MIKROTIK_PASSWORD';
+const MT_HOST = '192.168.69.1';
+const MT_USER = 'ai-angravity';
+const MT_PASS = 'Manhdaoduc9x';
 const MT_AUTH = 'Basic ' + Buffer.from(`${MT_USER}:${MT_PASS}`).toString('base64');
 
 // State
@@ -24,6 +24,15 @@ if (fs.existsSync(HISTORY_FILE)) {
 
 function saveHistory() {
   fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2));
+}
+
+const HOURLY_FILE = path.join(__dirname, 'hourly.json');
+let hourly = {};
+if (fs.existsSync(HOURLY_FILE)) {
+  try { hourly = JSON.parse(fs.readFileSync(HOURLY_FILE, 'utf8')); } catch(e) { hourly = {}; }
+}
+function saveHourly() {
+  fs.writeFileSync(HOURLY_FILE, JSON.stringify(hourly, null, 2));
 }
 
 // Fetch from MikroTik
@@ -71,6 +80,7 @@ async function poll() {
     // Key = router's local date (UTC+7)
     const localNow = new Date(Date.now() + 7 * 3600 * 1000);
     const dateStr = localNow.toISOString().slice(0, 10); // YYYY-MM-DD
+    const hourStr = localNow.toISOString().slice(11, 13); // HH
 
     const prev = history[dateStr];
     const newSnap = {
@@ -86,6 +96,21 @@ async function poll() {
         prev.vttDl !== newSnap.vttDl || prev.vttUl !== newSnap.vttUl) {
       history[dateStr] = newSnap;
       saveHistory();
+    }
+
+    // --- Snapshot hourly history ---
+    const hourKey = `${dateStr}T${hourStr}`;
+    const prevHr = hourly[hourKey];
+    const newHrSnap = {
+      fptDl: Math.max((prevHr||{}).fptDl||0, todayData.fptDl),
+      fptUl: Math.max((prevHr||{}).fptUl||0, todayData.fptUl),
+      vttDl: Math.max((prevHr||{}).vttDl||0, todayData.vttDl),
+      vttUl: Math.max((prevHr||{}).vttUl||0, todayData.vttUl),
+    };
+    if (!prevHr || prevHr.fptDl !== newHrSnap.fptDl || prevHr.fptUl !== newHrSnap.fptUl ||
+        prevHr.vttDl !== newHrSnap.vttDl || prevHr.vttUl !== newHrSnap.vttUl) {
+      hourly[hourKey] = newHrSnap;
+      saveHourly();
     }
 
   } catch(e) {
@@ -158,4 +183,43 @@ app.get('/api/history', (req, res) => {
   res.json(filtered);
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log(`Traffic Dashboard running on http://YOUR_SERVER_IP:${PORT}`));
+app.get('/api/hourly', (req, res) => {
+  const localNow = new Date(Date.now() + 7 * 3600 * 1000);
+  const defaultDay = localNow.toISOString().slice(0, 10);
+  const targetDay = req.query.day || defaultDay;
+  
+  const result = {};
+  
+  for (let h = 0; h < 24; h++) {
+    const hh = h.toString().padStart(2, '0');
+    const curKey = `${targetDay}T${hh}`;
+    
+    let baseline = { fptDl: 0, fptUl: 0, vttDl: 0, vttUl: 0 };
+    for (let prevH = h - 1; prevH >= 0; prevH--) {
+      const prevKey = `${targetDay}T${prevH.toString().padStart(2, '0')}`;
+      if (hourly[prevKey]) {
+        baseline = hourly[prevKey];
+        break;
+      }
+    }
+    
+    let curSnap = hourly[curKey];
+    
+    if (!curSnap && targetDay === defaultDay && hh > localNow.toISOString().slice(11, 13)) {
+      continue; 
+    }
+    
+    if (!curSnap) curSnap = baseline;
+
+    result[`${hh}:00`] = {
+      fptDl: Math.max(0, curSnap.fptDl - baseline.fptDl),
+      fptUl: Math.max(0, curSnap.fptUl - baseline.fptUl),
+      vttDl: Math.max(0, curSnap.vttDl - baseline.vttDl),
+      vttUl: Math.max(0, curSnap.vttUl - baseline.vttUl)
+    };
+  }
+  
+  res.json(result);
+});
+
+app.listen(PORT, '0.0.0.0', () => console.log(`Traffic Dashboard running on http://192.168.69.5:${PORT}`));
