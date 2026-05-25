@@ -4,7 +4,7 @@
 
 MikroTik Traffic Dashboard là một ứng dụng Node.js hiện đại, nhẹ nhàng dùng để theo dõi lưu lượng mạng (Download/Upload) của các đường truyền WAN trên Router MikroTik. Phiên bản 2.0 mang đến một kiến trúc hoàn toàn mới, hỗ trợ tự động nhận diện nhiều đường truyền và tích hợp sẵn Giao diện Cấu hình Web.
 
-![Dashboard Preview](https://via.placeholder.com/1200x600?text=MikroTik+Traffic+Dashboard+v2.0)
+![Dashboard Preview](screenshot.png)
 
 ## ✨ Điểm mới trong v2.0
 - **Đường truyền động**: Không còn bị giới hạn cứng vào FPT/Viettel. Bạn có thể thêm bao nhiêu đường truyền mạng tùy ý (VNPT, CMC, Starlink, v.v.).
