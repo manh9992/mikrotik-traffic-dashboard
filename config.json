@@ -1,0 +1,11 @@
+{
+  "mikrotik": {
+    "ip": "192.168.69.1",
+    "user": "ai-angravity",
+    "pass": "Manhdaoduc9x"
+  },
+  "interfaces": [
+    { "id": "wan1", "label": "FPT", "color": "#ff7300", "mk_name": "WAN_FPT" },
+    { "id": "wan2", "label": "Viettel", "color": "#ef4444", "mk_name": "WAN_VIETTEL" }
+  ]
+}

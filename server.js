@@ -5,37 +5,34 @@ const http = require('http');
 
 const app = express();
 const PORT = 3001;
+const CONFIG_FILE = path.join(__dirname, 'config.json');
 const HISTORY_FILE = path.join(__dirname, 'history.json');
+const HOURLY_FILE = path.join(__dirname, 'hourly.json');
 
-// MikroTik config
-const MT_HOST = '192.168.69.1';
-const MT_USER = 'ai-angravity';
-const MT_PASS = 'Manhdaoduc9x';
-const MT_AUTH = 'Basic ' + Buffer.from(`${MT_USER}:${MT_PASS}`).toString('base64');
+let config = { mikrotik: {}, interfaces: [] };
+if (fs.existsSync(CONFIG_FILE)) {
+  try { config = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')); } catch(e) { console.error("Bad config.json"); }
+}
 
-// State
-let todayData = { fptDl: 0, fptUl: 0, vttDl: 0, vttUl: 0, monFptDl: 0, monFptUl: 0, monVttDl: 0, monVttUl: 0 };
+let MT_HOST = config.mikrotik.ip || '192.168.69.1';
+let MT_USER = config.mikrotik.user || 'api-user';
+let MT_PASS = config.mikrotik.pass || 'password';
+let MT_AUTH = 'Basic ' + Buffer.from(`${MT_USER}:${MT_PASS}`).toString('base64');
 
-// Load history
+let todayData = {};
+
 let history = {};
 if (fs.existsSync(HISTORY_FILE)) {
   try { history = JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf8')); } catch(e) { history = {}; }
 }
+function saveHistory() { fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2)); }
 
-function saveHistory() {
-  fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2));
-}
-
-const HOURLY_FILE = path.join(__dirname, 'hourly.json');
 let hourly = {};
 if (fs.existsSync(HOURLY_FILE)) {
   try { hourly = JSON.parse(fs.readFileSync(HOURLY_FILE, 'utf8')); } catch(e) { hourly = {}; }
 }
-function saveHourly() {
-  fs.writeFileSync(HOURLY_FILE, JSON.stringify(hourly, null, 2));
-}
+function saveHourly() { fs.writeFileSync(HOURLY_FILE, JSON.stringify(hourly, null, 2)); }
 
-// Fetch from MikroTik
 function mtFetch(path) {
   return new Promise((resolve, reject) => {
     const opts = {
@@ -57,61 +54,65 @@ function mtFetch(path) {
   });
 }
 
-// Poll MikroTik every 30s
 async function poll() {
   try {
     const trafficFile = await mtFetch('/file/traf-data.txt');
-
-    // Parse traf-data.txt (unit: KB)
-    // format: dayRxF,dayTxF,dayRxV,dayTxV,monRxF,monTxF,monRxV,monTxV
-    const contents = (trafficFile.contents || '0,0,0,0,0,0,0,0').trim();
+    const contents = (trafficFile.contents || '').trim();
+    if (!contents) return;
     const parts = contents.split(',').map(Number);
-    if (parts.length !== 8) return;
 
-    todayData = {
-      fptDl: parts[0], fptUl: parts[1],
-      vttDl: parts[2], vttUl: parts[3],
-      monFptDl: parts[4], monFptUl: parts[5],
-      monVttDl: parts[6], monVttUl: parts[7],
-      lastModified: trafficFile['last-modified'] || null
-    };
+    todayData = { lastModified: trafficFile['last-modified'] || null };
+    config.interfaces.forEach((iface, i) => {
+      todayData[iface.id] = {
+        dl: parts[i * 2] || 0,
+        ul: parts[i * 2 + 1] || 0
+      };
+    });
 
-    // --- Snapshot daily history ---
-    // Key = router's local date (UTC+7)
     const localNow = new Date(Date.now() + 7 * 3600 * 1000);
-    const dateStr = localNow.toISOString().slice(0, 10); // YYYY-MM-DD
-    const hourStr = localNow.toISOString().slice(11, 13); // HH
+    const dateStr = localNow.toISOString().slice(0, 10);
+    const hourStr = localNow.toISOString().slice(11, 13);
     const isResetWindow = (localNow.getHours() === 0 && localNow.getMinutes() <= 5);
 
+    // Daily Snapshot
     const prev = history[dateStr];
-    const newSnap = { ...todayData };
-    if (!isResetWindow && prev) {
-      newSnap.fptDl = Math.max((prev||{}).fptDl||0, todayData.fptDl);
-      newSnap.fptUl = Math.max((prev||{}).fptUl||0, todayData.fptUl);
-      newSnap.vttDl = Math.max((prev||{}).vttDl||0, todayData.vttDl);
-      newSnap.vttUl = Math.max((prev||{}).vttUl||0, todayData.vttUl);
-    }
+    const newSnap = {};
+    let dailyChanged = !prev;
 
-    // Only write to disk when value actually changed
-    if (!prev ||
-        prev.fptDl !== newSnap.fptDl || prev.fptUl !== newSnap.fptUl ||
-        prev.vttDl !== newSnap.vttDl || prev.vttUl !== newSnap.vttUl) {
+    config.interfaces.forEach(iface => {
+      newSnap[iface.id] = { ...todayData[iface.id] };
+      if (!isResetWindow && prev && prev[iface.id]) {
+        newSnap[iface.id].dl = Math.max(prev[iface.id].dl || 0, todayData[iface.id].dl);
+        newSnap[iface.id].ul = Math.max(prev[iface.id].ul || 0, todayData[iface.id].ul);
+      }
+      if (prev && (!prev[iface.id] || prev[iface.id].dl !== newSnap[iface.id].dl || prev[iface.id].ul !== newSnap[iface.id].ul)) {
+        dailyChanged = true;
+      }
+    });
+
+    if (dailyChanged) {
       history[dateStr] = newSnap;
       saveHistory();
     }
 
-    // --- Snapshot hourly history ---
+    // Hourly Snapshot
     const hourKey = `${dateStr}T${hourStr}`;
     const prevHr = hourly[hourKey];
-    const newHrSnap = { ...todayData };
-    if (!isResetWindow && prevHr) {
-      newHrSnap.fptDl = Math.max((prevHr||{}).fptDl||0, todayData.fptDl);
-      newHrSnap.fptUl = Math.max((prevHr||{}).fptUl||0, todayData.fptUl);
-      newHrSnap.vttDl = Math.max((prevHr||{}).vttDl||0, todayData.vttDl);
-      newHrSnap.vttUl = Math.max((prevHr||{}).vttUl||0, todayData.vttUl);
-    }
-    if (!prevHr || prevHr.fptDl !== newHrSnap.fptDl || prevHr.fptUl !== newHrSnap.fptUl ||
-        prevHr.vttDl !== newHrSnap.vttDl || prevHr.vttUl !== newHrSnap.vttUl) {
+    const newHrSnap = {};
+    let hrChanged = !prevHr;
+
+    config.interfaces.forEach(iface => {
+      newHrSnap[iface.id] = { ...todayData[iface.id] };
+      if (!isResetWindow && prevHr && prevHr[iface.id]) {
+        newHrSnap[iface.id].dl = Math.max(prevHr[iface.id].dl || 0, todayData[iface.id].dl);
+        newHrSnap[iface.id].ul = Math.max(prevHr[iface.id].ul || 0, todayData[iface.id].ul);
+      }
+      if (prevHr && (!prevHr[iface.id] || prevHr[iface.id].dl !== newHrSnap[iface.id].dl || prevHr[iface.id].ul !== newHrSnap[iface.id].ul)) {
+        hrChanged = true;
+      }
+    });
+
+    if (hrChanged) {
       hourly[hourKey] = newHrSnap;
       saveHourly();
     }
@@ -121,16 +122,42 @@ async function poll() {
   }
 }
 
-// Start polling
 poll();
 setInterval(poll, 30000);
 
-// API routes
 app.use(express.static(path.join(__dirname, 'public')));
 
-// realtime endpoint kept for compatibility (returns zeros since speed tracking removed)
-app.get('/api/realtime', (req, res) => res.json({ updatedAt: new Date().toISOString() }));
-
+app.get('/api/config', (req, res) => {
+  res.json({
+    mikrotik: { ip: "" }, // Always return empty IP to keep UI blank as requested
+    interfaces: config.interfaces
+  });
+});
+app.post('/api/config', express.json(), (req, res) => {
+  try {
+    const newConfig = req.body;
+    if (newConfig.mikrotik) {
+      if (newConfig.mikrotik.ip) {
+        config.mikrotik.ip = newConfig.mikrotik.ip;
+        MT_HOST = config.mikrotik.ip;
+      }
+      if (newConfig.mikrotik.user) {
+        config.mikrotik.user = newConfig.mikrotik.user;
+        MT_USER = config.mikrotik.user;
+      }
+      if (newConfig.mikrotik.pass) {
+        config.mikrotik.pass = newConfig.mikrotik.pass;
+        MT_PASS = config.mikrotik.pass;
+      }
+      MT_AUTH = 'Basic ' + Buffer.from(`${MT_USER}:${MT_PASS}`).toString('base64');
+    }
+    config.interfaces = newConfig.interfaces;
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+    res.json({ success: true });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 app.get('/api/today', (req, res) => res.json(todayData));
 
 app.get('/api/history', (req, res) => {
@@ -140,7 +167,6 @@ app.get('/api/history', (req, res) => {
 
   let filtered = {};
 
-  // Support Nd format (e.g. 7d, 14d, 30d)
   const daysMatch = range.match(/^(\d+)d$/);
   if (daysMatch) {
     const days = parseInt(daysMatch[1]);
@@ -149,36 +175,38 @@ app.get('/api/history', (req, res) => {
     return res.json(filtered);
   }
 
+  const initIfaceObj = () => {
+    const obj = {};
+    config.interfaces.forEach(i => obj[i.id] = { dl: 0, ul: 0 });
+    return obj;
+  };
+
   if (range === '12m') {
-    // Aggregate by month = SUM of all daily records in that month
     const byMonth = {};
     for (const k of allKeys) {
-      const m = k.slice(0, 7); // YYYY-MM
-      if (!byMonth[m]) byMonth[m] = { fptDl:0, fptUl:0, vttDl:0, vttUl:0 };
+      const m = k.slice(0, 7);
+      if (!byMonth[m]) byMonth[m] = initIfaceObj();
       const d = history[k];
-      byMonth[m].fptDl += d.fptDl;
-      byMonth[m].fptUl += d.fptUl;
-      byMonth[m].vttDl += d.vttDl;
-      byMonth[m].vttUl += d.vttUl;
+      config.interfaces.forEach(i => {
+        if (d[i.id]) {
+          byMonth[m][i.id].dl += d[i.id].dl;
+          byMonth[m][i.id].ul += d[i.id].ul;
+        }
+      });
     }
-    // Current month: use monFptDl from MikroTik (authoritative cumulative for this month)
-    const localNow2 = new Date(Date.now() + 7 * 3600 * 1000);
-    const curMonth = localNow2.toISOString().slice(0, 7);
-    byMonth[curMonth] = {
-      fptDl: todayData.monFptDl, fptUl: todayData.monFptUl,
-      vttDl: todayData.monVttDl, vttUl: todayData.monVttUl
-    };
     filtered = byMonth;
   } else if (range === '1y') {
-    // Aggregate by year
     const byYear = {};
     for (const k of allKeys) {
       const y = k.slice(0, 4);
-      if (!byYear[y]) byYear[y] = { fptDl:0, fptUl:0, vttDl:0, vttUl:0 };
-      byYear[y].fptDl += history[k].fptDl;
-      byYear[y].fptUl += history[k].fptUl;
-      byYear[y].vttDl += history[k].vttDl;
-      byYear[y].vttUl += history[k].vttUl;
+      if (!byYear[y]) byYear[y] = initIfaceObj();
+      const d = history[k];
+      config.interfaces.forEach(i => {
+        if (d[i.id]) {
+          byYear[y][i.id].dl += d[i.id].dl;
+          byYear[y][i.id].ul += d[i.id].ul;
+        }
+      });
     }
     filtered = byYear;
   }
@@ -197,7 +225,7 @@ app.get('/api/hourly', (req, res) => {
     const hh = h.toString().padStart(2, '0');
     const curKey = `${targetDay}T${hh}`;
     
-    let baseline = { fptDl: 0, fptUl: 0, vttDl: 0, vttUl: 0 };
+    let baseline = null;
     for (let prevH = h - 1; prevH >= 0; prevH--) {
       const prevKey = `${targetDay}T${prevH.toString().padStart(2, '0')}`;
       if (hourly[prevKey]) {
@@ -206,20 +234,26 @@ app.get('/api/hourly', (req, res) => {
       }
     }
     
-    let curSnap = hourly[curKey];
-    
-    if (!curSnap && targetDay === defaultDay && hh > localNow.toISOString().slice(11, 13)) {
-      continue; 
+    if (!baseline) {
+      baseline = {};
+      config.interfaces.forEach(i => baseline[i.id] = {dl: 0, ul: 0});
     }
-    
+
+    let curSnap = hourly[curKey];
+    if (!curSnap && targetDay === defaultDay && hh > localNow.toISOString().slice(11, 13)) continue; 
     if (!curSnap) curSnap = baseline;
 
-    result[`${hh}:00`] = {
-      fptDl: Math.max(0, curSnap.fptDl - baseline.fptDl),
-      fptUl: Math.max(0, curSnap.fptUl - baseline.fptUl),
-      vttDl: Math.max(0, curSnap.vttDl - baseline.vttDl),
-      vttUl: Math.max(0, curSnap.vttUl - baseline.vttUl)
-    };
+    result[`${hh}:00`] = {};
+    config.interfaces.forEach(i => {
+      const bDl = baseline[i.id] ? baseline[i.id].dl : 0;
+      const bUl = baseline[i.id] ? baseline[i.id].ul : 0;
+      const cDl = curSnap[i.id] ? curSnap[i.id].dl : 0;
+      const cUl = curSnap[i.id] ? curSnap[i.id].ul : 0;
+      result[`${hh}:00`][i.id] = {
+        dl: Math.max(0, cDl - bDl),
+        ul: Math.max(0, cUl - bUl)
+      };
+    });
   }
   
   res.json(result);

@@ -23,7 +23,15 @@
         <p class="subtitle" id="lastUpdate">Đang tải dữ liệu...</p>
       </div>
     </div>
-    <div class="header-right">
+    <div class="header-right" style="display:flex; gap:15px; align-items:center;">
+      <button class="setup-btn" id="btnSysConfig" onclick="openSysConfigModal()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Hệ thống
+      </button>
+      <button class="setup-btn" id="btnSetup" onclick="openSetupModal()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+        Script MikroTik
+      </button>
       <div class="status-badge" id="statusBadge">
         <span class="status-dot" id="statusDot"></span>
         <span id="statusText">Connecting...</span>
@@ -32,78 +40,8 @@
   </header>
 
   <main>
-    <!-- Today Summary Cards -->
-    <section class="summary-section">
-      <div class="summary-card fpt-card">
-        <div class="summary-isp">
-          <span class="isp-dot fpt-dot"></span>FPT
-        </div>
-        <div class="summary-row">
-          <div class="summary-stat">
-            <div class="summary-label">Hôm nay ↓</div>
-            <div class="summary-val fpt-color" id="sumFptDl">--</div>
-          </div>
-          <div class="summary-stat">
-            <div class="summary-label">Hôm nay ↑</div>
-            <div class="summary-val fpt-color" id="sumFptUl">--</div>
-          </div>
-          <div class="summary-stat">
-            <div class="summary-label">Tháng này ↓</div>
-            <div class="summary-val" id="sumMonFptDl">--</div>
-          </div>
-          <div class="summary-stat">
-            <div class="summary-label">Tháng này ↑</div>
-            <div class="summary-val" id="sumMonFptUl">--</div>
-          </div>
-        </div>
-      </div>
-      <div class="summary-card vtt-card">
-        <div class="summary-isp">
-          <span class="isp-dot vtt-dot"></span>Viettel
-        </div>
-        <div class="summary-row">
-          <div class="summary-stat">
-            <div class="summary-label">Hôm nay ↓</div>
-            <div class="summary-val vtt-color" id="sumVttDl">--</div>
-          </div>
-          <div class="summary-stat">
-            <div class="summary-label">Hôm nay ↑</div>
-            <div class="summary-val vtt-color" id="sumVttUl">--</div>
-          </div>
-          <div class="summary-stat">
-            <div class="summary-label">Tháng này ↓</div>
-            <div class="summary-val" id="sumMonVttDl">--</div>
-          </div>
-          <div class="summary-stat">
-            <div class="summary-label">Tháng này ↑</div>
-            <div class="summary-val" id="sumMonVttUl">--</div>
-          </div>
-        </div>
-      </div>
-      <div class="summary-card total-card">
-        <div class="summary-isp">
-          <span class="isp-dot total-dot"></span>Tổng cộng
-        </div>
-        <div class="summary-row">
-          <div class="summary-stat">
-            <div class="summary-label">Hôm nay ↓</div>
-            <div class="summary-val total-color" id="sumTotalDl">--</div>
-          </div>
-          <div class="summary-stat">
-            <div class="summary-label">Hôm nay ↑</div>
-            <div class="summary-val total-color" id="sumTotalUl">--</div>
-          </div>
-          <div class="summary-stat">
-            <div class="summary-label">Tháng này ↓</div>
-            <div class="summary-val" id="sumMonTotalDl">--</div>
-          </div>
-          <div class="summary-stat">
-            <div class="summary-label">Tháng này ↑</div>
-            <div class="summary-val" id="sumMonTotalUl">--</div>
-          </div>
-        </div>
-      </div>
-    </section>
+    <!-- Dynamic Today Summary Cards -->
+    <section class="summary-section" id="summarySection"></section>
 
     <!-- History Tabs -->
     <section class="history-section">
@@ -145,21 +83,7 @@
           <canvas id="hourlyChart" height="110"></canvas>
         </div>
         <div class="table-card">
-          <table id="hourlyTable">
-            <thead>
-              <tr>
-                <th data-sort="date" class="sortable sort-desc">Giờ <span class="sort-icon"></span></th>
-                <th data-sort="fptDl" class="fpt-color sortable">FPT (DL) <span class="sort-icon"></span></th>
-                <th data-sort="fptUl" class="fpt-color sortable">FPT (UL) <span class="sort-icon"></span></th>
-                <th data-sort="vttDl" class="vtt-color sortable">Viettel (DL) <span class="sort-icon"></span></th>
-                <th data-sort="vttUl" class="vtt-color sortable">Viettel (UL) <span class="sort-icon"></span></th>
-                <th data-sort="totalDl" class="total-color sortable">Tổng (DL) <span class="sort-icon"></span></th>
-                <th data-sort="totalUl" class="total-color sortable">Tổng (UL) <span class="sort-icon"></span></th>
-                <th data-sort="total" class="total-color sortable">Tổng <span class="sort-icon"></span></th>
-              </tr>
-            </thead>
-            <tbody id="hourlyTableBody"></tbody>
-          </table>
+          <table id="hourlyTable"></table>
         </div>
       </div>
 
@@ -169,21 +93,7 @@
           <canvas id="dailyChart" height="110"></canvas>
         </div>
         <div class="table-card">
-          <table id="dailyTable">
-            <thead>
-              <tr>
-                <th data-sort="date" class="sortable sort-desc">Ngày <span class="sort-icon"></span></th>
-                <th data-sort="fptDl" class="fpt-color sortable">FPT (DL) <span class="sort-icon"></span></th>
-                <th data-sort="fptUl" class="fpt-color sortable">FPT (UL) <span class="sort-icon"></span></th>
-                <th data-sort="vttDl" class="vtt-color sortable">Viettel (DL) <span class="sort-icon"></span></th>
-                <th data-sort="vttUl" class="vtt-color sortable">Viettel (UL) <span class="sort-icon"></span></th>
-                <th data-sort="totalDl" class="total-color sortable">Tổng (DL) <span class="sort-icon"></span></th>
-                <th data-sort="totalUl" class="total-color sortable">Tổng (UL) <span class="sort-icon"></span></th>
-                <th data-sort="total" class="total-color sortable">Tổng <span class="sort-icon"></span></th>
-              </tr>
-            </thead>
-            <tbody id="dailyTableBody"></tbody>
-          </table>
+          <table id="dailyTable"></table>
         </div>
       </div>
 
@@ -193,21 +103,7 @@
           <canvas id="monthlyChart" height="110"></canvas>
         </div>
         <div class="table-card">
-          <table id="monthlyTable">
-            <thead>
-              <tr>
-                <th data-sort="date" class="sortable sort-desc">Tháng <span class="sort-icon"></span></th>
-                <th data-sort="fptDl" class="fpt-color sortable">FPT (DL) <span class="sort-icon"></span></th>
-                <th data-sort="fptUl" class="fpt-color sortable">FPT (UL) <span class="sort-icon"></span></th>
-                <th data-sort="vttDl" class="vtt-color sortable">Viettel (DL) <span class="sort-icon"></span></th>
-                <th data-sort="vttUl" class="vtt-color sortable">Viettel (UL) <span class="sort-icon"></span></th>
-                <th data-sort="totalDl" class="total-color sortable">Tổng (DL) <span class="sort-icon"></span></th>
-                <th data-sort="totalUl" class="total-color sortable">Tổng (UL) <span class="sort-icon"></span></th>
-                <th data-sort="total" class="total-color sortable">Tổng <span class="sort-icon"></span></th>
-              </tr>
-            </thead>
-            <tbody id="monthlyTableBody"></tbody>
-          </table>
+          <table id="monthlyTable"></table>
         </div>
       </div>
 
@@ -217,25 +113,81 @@
           <canvas id="yearlyChart" height="110"></canvas>
         </div>
         <div class="table-card">
-          <table id="yearlyTable">
-            <thead>
-              <tr>
-                <th data-sort="date" class="sortable sort-desc">Năm <span class="sort-icon"></span></th>
-                <th data-sort="fptDl" class="fpt-color sortable">FPT (DL) <span class="sort-icon"></span></th>
-                <th data-sort="fptUl" class="fpt-color sortable">FPT (UL) <span class="sort-icon"></span></th>
-                <th data-sort="vttDl" class="vtt-color sortable">Viettel (DL) <span class="sort-icon"></span></th>
-                <th data-sort="vttUl" class="vtt-color sortable">Viettel (UL) <span class="sort-icon"></span></th>
-                <th data-sort="totalDl" class="total-color sortable">Tổng (DL) <span class="sort-icon"></span></th>
-                <th data-sort="totalUl" class="total-color sortable">Tổng (UL) <span class="sort-icon"></span></th>
-                <th data-sort="total" class="total-color sortable">Tổng <span class="sort-icon"></span></th>
-              </tr>
-            </thead>
-            <tbody id="yearlyTableBody"></tbody>
-          </table>
+          <table id="yearlyTable"></table>
         </div>
       </div>
     </section>
   </main>
+
+  <!-- Setup Modal -->
+  <div id="setupModal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeSetupModal()">&times;</span>
+      <h2>Hướng dẫn cài đặt MikroTik</h2>
+      <p>Dựa trên file <code>config.json</code>, hệ thống đã tạo sẵn script riêng cho router của bạn.</p>
+      
+      <div class="script-section">
+        <h3>1. Script thu thập dữ liệu (Chạy mỗi 5 phút)</h3>
+        <p>Tạo một Script mới trên MikroTik tên là <code>traffic-collector</code> và dán đoạn code này vào:</p>
+        <textarea id="scriptCollector" readonly></textarea>
+        <p>Vào System -> Scheduler, tạo 1 scheduler chạy mỗi 5 phút: <code>/system script run traffic-collector</code></p>
+      </div>
+
+      <div class="script-section" style="margin-top: 20px;">
+        <h3>2. Script chốt sổ ngày (Chạy lúc 00:01)</h3>
+        <p>Tạo Script mới tên là <code>daily-traffic-report</code> và dán đoạn code này vào:</p>
+        <textarea id="scriptReporter" readonly></textarea>
+        <p>Vào System -> Scheduler, tạo 1 scheduler chạy vào lúc <code>00:01:00</code> mỗi ngày: <code>/system script run daily-traffic-report</code></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- System Config Modal -->
+  <div id="sysConfigModal" class="modal">
+    <div class="modal-content config-modal-content">
+      <span class="close" onclick="closeSysConfigModal()">&times;</span>
+      <h2>Cấu hình Hệ thống</h2>
+      <p>Cập nhật kết nối Router và định nghĩa các đường truyền mạng.</p>
+      
+      <div class="config-section">
+        <h3>1. Thông tin MikroTik</h3>
+        <div class="config-grid">
+          <div class="input-group">
+            <label>IP Address <span style="font-weight:normal;color:#94a3b8;font-size:0.75rem;">(Để trống nếu không đổi)</span></label>
+            <input type="text" id="cfgIp" placeholder="192.168.1.1" />
+          </div>
+          <div class="input-group">
+            <label>API User <span style="font-weight:normal;color:#94a3b8;font-size:0.75rem;">(Để trống nếu không đổi)</span></label>
+            <input type="text" id="cfgUser" placeholder="admin" />
+          </div>
+          <div class="input-group">
+            <label>API Password <span style="font-weight:normal;color:#94a3b8;font-size:0.75rem;">(Để trống nếu không đổi)</span></label>
+            <input type="password" id="cfgPass" placeholder="***" />
+          </div>
+        </div>
+      </div>
+
+      <div class="config-section" style="margin-top: 20px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
+          <h3>2. Danh sách Đường truyền (Interfaces)</h3>
+          <button class="setup-btn" onclick="addInterfaceRow()">+ Thêm đường truyền</button>
+        </div>
+        <div class="interface-list-header">
+          <div>ID (Mã)</div>
+          <div>Tên hiển thị</div>
+          <div>Màu sắc</div>
+          <div>Tên interface MikroTik</div>
+          <div>Xóa</div>
+        </div>
+        <div id="interfaceList"></div>
+      </div>
+      
+      <div style="margin-top: 25px; display:flex; justify-content:flex-end; gap: 15px;">
+        <button class="setup-btn" style="background:#f1f5f9;" onclick="closeSysConfigModal()">Hủy</button>
+        <button class="setup-btn" style="background:#0f172a; color:#fff;" onclick="saveSysConfig()">Lưu cấu hình</button>
+      </div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>
