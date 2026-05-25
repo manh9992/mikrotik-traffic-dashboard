@@ -81,14 +81,16 @@ async function poll() {
     const localNow = new Date(Date.now() + 7 * 3600 * 1000);
     const dateStr = localNow.toISOString().slice(0, 10); // YYYY-MM-DD
     const hourStr = localNow.toISOString().slice(11, 13); // HH
+    const isResetWindow = (localNow.getHours() === 0 && localNow.getMinutes() <= 5);
 
     const prev = history[dateStr];
-    const newSnap = {
-      fptDl: Math.max((prev||{}).fptDl||0, todayData.fptDl),
-      fptUl: Math.max((prev||{}).fptUl||0, todayData.fptUl),
-      vttDl: Math.max((prev||{}).vttDl||0, todayData.vttDl),
-      vttUl: Math.max((prev||{}).vttUl||0, todayData.vttUl),
-    };
+    const newSnap = { ...todayData };
+    if (!isResetWindow && prev) {
+      newSnap.fptDl = Math.max((prev||{}).fptDl||0, todayData.fptDl);
+      newSnap.fptUl = Math.max((prev||{}).fptUl||0, todayData.fptUl);
+      newSnap.vttDl = Math.max((prev||{}).vttDl||0, todayData.vttDl);
+      newSnap.vttUl = Math.max((prev||{}).vttUl||0, todayData.vttUl);
+    }
 
     // Only write to disk when value actually changed
     if (!prev ||
@@ -101,12 +103,13 @@ async function poll() {
     // --- Snapshot hourly history ---
     const hourKey = `${dateStr}T${hourStr}`;
     const prevHr = hourly[hourKey];
-    const newHrSnap = {
-      fptDl: Math.max((prevHr||{}).fptDl||0, todayData.fptDl),
-      fptUl: Math.max((prevHr||{}).fptUl||0, todayData.fptUl),
-      vttDl: Math.max((prevHr||{}).vttDl||0, todayData.vttDl),
-      vttUl: Math.max((prevHr||{}).vttUl||0, todayData.vttUl),
-    };
+    const newHrSnap = { ...todayData };
+    if (!isResetWindow && prevHr) {
+      newHrSnap.fptDl = Math.max((prevHr||{}).fptDl||0, todayData.fptDl);
+      newHrSnap.fptUl = Math.max((prevHr||{}).fptUl||0, todayData.fptUl);
+      newHrSnap.vttDl = Math.max((prevHr||{}).vttDl||0, todayData.vttDl);
+      newHrSnap.vttUl = Math.max((prevHr||{}).vttUl||0, todayData.vttUl);
+    }
     if (!prevHr || prevHr.fptDl !== newHrSnap.fptDl || prevHr.fptUl !== newHrSnap.fptUl ||
         prevHr.vttDl !== newHrSnap.vttDl || prevHr.vttUl !== newHrSnap.vttUl) {
       hourly[hourKey] = newHrSnap;
