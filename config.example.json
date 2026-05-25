@@ -1,0 +1,10 @@
+{
+  "mikrotik": {
+    "ip": "192.168.1.1",
+    "user": "YOUR_USERNAME",
+    "pass": "YOUR_PASSWORD"
+  },
+  "interfaces": [
+    { "id": "wan1", "label": "ISP 1", "color": "#ff7300", "mk_name": "ether1-WAN" }
+  ]
+}
