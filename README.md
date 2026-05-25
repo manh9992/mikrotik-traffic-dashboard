@@ -50,7 +50,7 @@ MikroTik Traffic Dashboard là một ứng dụng Node.js hiện đại, nhẹ n
 Việc thiết lập giờ đây đã tự động hóa 100% qua Giao diện Web:
 
 1. Bấm nút **"Hệ thống"** ở góc phải màn hình.
-2. Nhập địa chỉ IP, User và Password của Router (Để trống nếu bạn không muốn đổi).
+2. Nhập địa chỉ IP, User và Password của Router.
 3. Bấm **"+ Thêm đường truyền"** để định nghĩa các mạng bạn có:
    - **ID (Mã)**: Mã nội bộ (VD: `wan1`)
    - **Tên hiển thị**: Tên hiện trên Dashboard (VD: `VNPT`)
