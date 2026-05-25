@@ -205,8 +205,34 @@ td.year-label::after {
   transition: background 0.2s;
 }
 .sortable:hover {
-  background: var(--border);
+  background-color: var(--card-bg);
 }
+
+/* Modal Styling */
+.modal { display: none; position: fixed; z-index: 999; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); backdrop-filter: blur(4px); }
+.modal-content { background-color: #ffffff; color: #1e293b; margin: 5% auto; padding: 30px; border-radius: 12px; width: 85%; max-width: 800px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); }
+.modal-content h2 { margin-top: 0; color: #0f172a; margin-bottom: 8px; }
+.modal-content p { color: #475569; font-size: 0.95rem; line-height: 1.5; margin-bottom: 12px; }
+.modal-content h3 { color: #334155; margin-bottom: 8px; font-size: 1.1rem; }
+.close { color: #94a3b8; float: right; font-size: 28px; font-weight: bold; cursor: pointer; line-height: 1; }
+.close:hover { color: #1e293b; }
+textarea { width: 100%; height: 250px; background: #f8fafc; color: #334155; font-family: 'JetBrains Mono', monospace; border: 1px solid #cbd5e1; padding: 15px; border-radius: 8px; font-size: 13px; margin-top: 5px; resize: vertical; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }
+textarea:focus { outline: none; border-color: #94a3b8; }
+.setup-btn { background: #ffffff; color: #334155; border: 1px solid #cbd5e1; padding: 8px 16px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 0.9rem; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: all 0.2s; }
+.setup-btn:hover { background: #f1f5f9; border-color: #94a3b8; color: #0f172a; }
+.config-modal-content { max-width: 900px; }
+.config-section { background: #f8fafc; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; }
+.config-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+.input-group { display: flex; flex-direction: column; gap: 5px; }
+.input-group label { font-size: 0.85rem; font-weight: 600; color: #475569; }
+.input-group input { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-family: 'Inter', sans-serif; font-size: 0.9rem; outline: none; }
+.input-group input:focus { border-color: #94a3b8; }
+.interface-list-header { display: grid; grid-template-columns: 1fr 1fr 100px 1.5fr 50px; gap: 10px; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 5px; padding: 0 5px; }
+.iface-row { display: grid; grid-template-columns: 1fr 1fr 100px 1.5fr 50px; gap: 10px; align-items: center; margin-bottom: 10px; }
+.iface-row input { padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; outline: none; width: 100%; }
+.iface-row input[type="color"] { padding: 2px; height: 35px; cursor: pointer; }
+.btn-del { background: #fee2e2; color: #ef4444; border: 1px solid #fca5a5; padding: 8px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+.btn-del:hover { background: #ef4444; color: #fff; }
 .sort-icon::after {
   content: '↕';
   opacity: 0.3;
