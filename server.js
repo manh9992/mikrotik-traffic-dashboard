@@ -20,6 +20,7 @@ let MT_PASS = config.mikrotik.pass || 'password';
 let MT_AUTH = 'Basic ' + Buffer.from(`${MT_USER}:${MT_PASS}`).toString('base64');
 
 let todayData = {};
+let bgStatus = { online: true, error: null };
 
 let history = {};
 if (fs.existsSync(HISTORY_FILE)) {
@@ -57,6 +58,7 @@ function mtFetch(path) {
 async function poll() {
   try {
     const trafficFile = await mtFetch('/file/traf-data.txt');
+    bgStatus = { online: true, error: null };
     const contents = (trafficFile.contents || '').trim();
     if (!contents) return;
     const parts = contents.split(',').map(Number);
@@ -118,6 +120,7 @@ async function poll() {
     }
 
   } catch(e) {
+    bgStatus = { online: false, error: e.message };
     console.error('[Poll error]', e.message);
   }
 }
@@ -159,6 +162,45 @@ app.post('/api/config', express.json(), (req, res) => {
   }
 });
 app.get('/api/today', (req, res) => res.json(todayData));
+app.get('/api/status', (req, res) => res.json(bgStatus));
+
+app.post('/api/test-connection', express.json(), async (req, res) => {
+  const testHost = req.body.ip || MT_HOST;
+  const testUser = req.body.user || MT_USER;
+  const testPass = req.body.pass || MT_PASS;
+  const testAuth = 'Basic ' + Buffer.from(`${testUser}:${testPass}`).toString('base64');
+  
+  try {
+    const opts = {
+      hostname: testHost, port: 80, path: `/rest/system/identity`,
+      method: 'GET',
+      headers: { 'Authorization': testAuth, 'Content-Type': 'application/json' },
+      timeout: 3000
+    };
+    
+    const reqTest = http.request(opts, response => {
+      let data = '';
+      response.on('data', c => data += c);
+      response.on('end', () => {
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          res.json({ success: true, message: 'Kết nối MikroTik thành công!' });
+        } else {
+          try {
+            const errBody = JSON.parse(data);
+            res.json({ success: false, error: `HTTP ${response.statusCode}: ${errBody.detail || errBody.error || 'Lỗi không xác định'}` });
+          } catch(e) {
+            res.json({ success: false, error: `HTTP ${response.statusCode}: Sai tài khoản/mật khẩu hoặc API không hợp lệ.` });
+          }
+        }
+      });
+    });
+    reqTest.on('error', err => res.json({ success: false, error: err.message === 'timeout' ? 'Timeout: Không thể tìm thấy IP này' : err.message }));
+    reqTest.on('timeout', () => { reqTest.destroy(); res.json({ success: false, error: 'Timeout: Không thể kết nối tới IP MikroTik.' }); });
+    reqTest.end();
+  } catch (e) {
+    res.json({ success: false, error: e.message });
+  }
+});
 
 app.get('/api/history', (req, res) => {
   const range = req.query.range || '7d';

@@ -211,17 +211,28 @@ function buildSummaryCards(td) {
 
 async function fetchToday() {
   try {
-    const r = await fetch('/api/today');
-    const d = await r.json();
-    buildSummaryCards(d);
-    const t = d.lastModified ? new Date(d.lastModified.replace(' ','T') + '+07:00') : new Date();
+    const [rData, rStatus] = await Promise.all([
+      fetch('/api/today').then(res => res.json()),
+      fetch('/api/status').then(res => res.json())
+    ]);
+    buildSummaryCards(rData);
+    const t = rData.lastModified ? new Date(rData.lastModified.replace(' ','T') + '+07:00') : new Date();
     $('lastUpdate').textContent = 'Cập nhật lúc ' + t.toLocaleTimeString('vi-VN') + ' · ' + t.toLocaleDateString('vi-VN');
-    $('statusBadge').classList.remove('offline');
-    $('statusText').textContent = 'Online';
-    return d;
+    
+    if (rStatus.online) {
+      $('statusBadge').classList.remove('offline');
+      $('statusText').textContent = 'Online';
+      $('statusBadge').title = 'Kết nối tới MikroTik ổn định';
+    } else {
+      $('statusBadge').classList.add('offline');
+      $('statusText').textContent = 'Lỗi kết nối';
+      $('statusBadge').title = rStatus.error || 'Mất kết nối tới MikroTik';
+    }
+    return rData;
   } catch(e) {
     $('statusBadge').classList.add('offline');
     $('statusText').textContent = 'Offline';
+    $('statusBadge').title = 'Mất kết nối tới Server Dashboard';
     return {};
   }
 }
@@ -424,5 +435,35 @@ async function saveSysConfig() {
     }
   } catch (e) {
     alert("Không thể kết nối đến máy chủ.");
+  }
+}
+
+async function testConnection() {
+  const ip = $('cfgIp').value.trim();
+  const user = $('cfgUser').value.trim();
+  const pass = $('cfgPass').value.trim();
+  
+  const btn = $('btnTestConn');
+  const oldText = btn.textContent;
+  btn.textContent = "Đang kiểm tra...";
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/test-connection', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ip, user, pass })
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert("✅ " + data.message);
+    } else {
+      alert("❌ Kết nối thất bại: \n\n" + data.error);
+    }
+  } catch (e) {
+    alert("❌ Không thể kết nối đến máy chủ Dashboard để thử nghiệm.");
+  } finally {
+    btn.textContent = oldText;
+    btn.disabled = false;
   }
 }

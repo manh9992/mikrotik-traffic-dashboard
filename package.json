@@ -1,6 +1,6 @@
 {
   "name": "traffic-dashboard",
-  "version": "1.0.0",
+  "version": "2.0.1",
   "description": "MikroTik Traffic Dashboard",
   "main": "server.js",
   "scripts": {
