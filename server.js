@@ -276,13 +276,33 @@ app.get('/api/hourly', (req, res) => {
       }
     }
     
+    let curSnap = hourly[curKey];
+    if (!curSnap && targetDay === defaultDay && hh > localNow.toISOString().slice(11, 13)) continue; 
+
+    if (!baseline && curSnap) {
+      // Find the last snapshot of the previous day to use as baseline
+      // This prevents a huge traffic spike if the midnight reset was missed due to downtime
+      const prevDate = new Date(new Date(targetDay).getTime() - 86400000).toISOString().slice(0, 10);
+      for (let prevH = 23; prevH >= 0; prevH--) {
+        const prevKey = `${prevDate}T${prevH.toString().padStart(2, '0')}`;
+        if (hourly[prevKey]) {
+          let isValid = true;
+          config.interfaces.forEach(i => {
+            const cDl = curSnap[i.id] ? curSnap[i.id].dl : 0;
+            const pDl = hourly[prevKey][i.id] ? hourly[prevKey][i.id].dl : 0;
+            if (cDl < pDl) isValid = false; // A reset happened, so this baseline is invalid
+          });
+          if (isValid) baseline = hourly[prevKey];
+          break;
+        }
+      }
+    }
+
     if (!baseline) {
       baseline = {};
       config.interfaces.forEach(i => baseline[i.id] = {dl: 0, ul: 0});
     }
 
-    let curSnap = hourly[curKey];
-    if (!curSnap && targetDay === defaultDay && hh > localNow.toISOString().slice(11, 13)) continue; 
     if (!curSnap) curSnap = baseline;
 
     result[`${hh}:00`] = {};
