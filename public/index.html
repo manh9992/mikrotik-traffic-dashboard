@@ -30,7 +30,7 @@
       </button>
       <button class="setup-btn" id="btnSetup" onclick="openSetupModal()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-        Script MikroTik
+        Cài đặt MikroTik
       </button>
       <div class="status-badge" id="statusBadge" title="Đang kiểm tra kết nối...">
         <span class="status-dot" id="statusDot"></span>
@@ -123,21 +123,22 @@
   <div id="setupModal" class="modal">
     <div class="modal-content">
       <span class="close" onclick="closeSetupModal()">&times;</span>
-      <h2>Hướng dẫn cài đặt MikroTik</h2>
-      <p>Dựa trên file <code>config.json</code>, hệ thống đã tạo sẵn script riêng cho router của bạn.</p>
+      <h2>Hướng dẫn kết nối MikroTik</h2>
+      <p>Dashboard sử dụng <strong>SNMP</strong> (an toàn 100% cho NAND) và <strong>REST API</strong> để giao tiếp.</p>
       
       <div class="script-section">
-        <h3>1. Script thu thập dữ liệu (Chạy mỗi 5 phút)</h3>
-        <p>Tạo một Script mới trên MikroTik tên là <code>traffic-collector</code> và dán đoạn code này vào:</p>
+        <h3>1. Bật SNMP (Bắt buộc)</h3>
+        <p>Copy lệnh dưới đây dán vào Terminal trên MikroTik để bật SNMP (Đã tự động điền IP của server Dashboard):</p>
         <textarea id="scriptCollector" readonly></textarea>
-        <p>Vào System -> Scheduler, tạo 1 scheduler chạy mỗi 5 phút: <code>/system script run traffic-collector</code></p>
+        <p><em>Lệnh này bật SNMP và giới hạn chỉ IP của máy chủ này mới được quyền đọc.</em></p>
       </div>
 
-      <div class="script-section" style="margin-top: 20px;">
-        <h3>2. Script chốt sổ ngày (Chạy lúc 00:01)</h3>
-        <p>Tạo Script mới tên là <code>daily-traffic-report</code> và dán đoạn code này vào:</p>
-        <textarea id="scriptReporter" readonly></textarea>
-        <p>Vào System -> Scheduler, tạo 1 scheduler chạy vào lúc <code>00:01:00</code> mỗi ngày: <code>/system script run daily-traffic-report</code></p>
+      <div class="script-section" style="margin-top: 25px;">
+        <h3>2. Bật REST API</h3>
+        <p>REST API dùng để kiểm tra kết nối. Chạy lệnh sau nếu chưa bật:</p>
+        <textarea id="scriptReporter" readonly style="height: 60px;">/ip service set api disabled=no
+/ip service set api-ssl disabled=no
+/ip service set www disabled=no</textarea>
       </div>
     </div>
   </div>

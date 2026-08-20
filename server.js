@@ -1,7 +1,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const http = require('http');
+const snmp = require('net-snmp');
 
 const app = express();
 const PORT = 3001;
@@ -18,6 +18,7 @@ let MT_HOST = config.mikrotik.ip || '192.168.69.1';
 let MT_USER = config.mikrotik.user || 'api-user';
 let MT_PASS = config.mikrotik.pass || 'password';
 let MT_AUTH = 'Basic ' + Buffer.from(`${MT_USER}:${MT_PASS}`).toString('base64');
+const SNMP_COMMUNITY = config.mikrotik.snmp_community || 'public';
 
 let todayData = {};
 let bgStatus = { online: true, error: null };
@@ -34,10 +35,253 @@ if (fs.existsSync(HOURLY_FILE)) {
 }
 function saveHourly() { fs.writeFileSync(HOURLY_FILE, JSON.stringify(hourly, null, 2)); }
 
-function mtFetch(path) {
+// --- SNMP Interface Index Cache ---
+let ifIndexCache = {}; // { "WAN_FPT": 3, "WAN_VIETTEL": 4, ... }
+let ifIndexReady = false;
+
+// SNMP OIDs
+const OID_IF_DESCR = '1.3.6.1.2.1.2.2.1.2';        // ifDescr (interface name)
+const OID_IF_HC_IN = '1.3.6.1.2.1.31.1.1.1.6';      // ifHCInOctets (64-bit rx)
+const OID_IF_HC_OUT = '1.3.6.1.2.1.31.1.1.1.10';     // ifHCOutOctets (64-bit tx)
+
+// Previous counters for delta calculation
+let prevCounters = {}; // { "wan1": { rx: BigInt, tx: BigInt }, ... }
+let dailyAccum = {};   // { "wan1": { dl: 0, ul: 0 }, ... } in KB
+
+// Load daily accum from today's history entry if exists
+function loadDailyAccum() {
+  const localNow = new Date(Date.now() + 7 * 3600 * 1000);
+  const dateStr = localNow.toISOString().slice(0, 10);
+  if (history[dateStr]) {
+    config.interfaces.forEach(iface => {
+      if (history[dateStr][iface.id]) {
+        dailyAccum[iface.id] = { ...history[dateStr][iface.id] };
+      }
+    });
+    console.log(`[SNMP] Restored daily accum from history for ${dateStr}`);
+  }
+}
+
+function createSession() {
+  return snmp.createSession(MT_HOST, SNMP_COMMUNITY, {
+    version: snmp.Version2c,
+    timeout: 5000,
+    retries: 1
+  });
+}
+
+// Discover interface indexes via SNMP walk
+async function discoverInterfaces() {
+  return new Promise((resolve, reject) => {
+    const session = createSession();
+    const mapping = {};
+    const neededNames = config.interfaces.map(i => i.mk_name);
+
+    session.subtree(OID_IF_DESCR, (varbinds) => {
+      varbinds.forEach(vb => {
+        const name = vb.value.toString();
+        if (neededNames.includes(name)) {
+          const idx = vb.oid.split('.').pop();
+          mapping[name] = parseInt(idx);
+        }
+      });
+    }, (error) => {
+      session.close();
+      if (error) {
+        reject(error);
+      } else {
+        ifIndexCache = mapping;
+        const found = Object.keys(mapping).length;
+        console.log(`[SNMP] Discovered ${found}/${neededNames.length} interfaces:`, mapping);
+        if (found === neededNames.length) {
+          ifIndexReady = true;
+          resolve(mapping);
+        } else {
+          const missing = neededNames.filter(n => !mapping[n]);
+          reject(new Error(`Missing interfaces: ${missing.join(', ')}`));
+        }
+      }
+    });
+  });
+}
+
+// Poll traffic counters via SNMP
+async function pollSNMP() {
+  if (!ifIndexReady) {
+    try {
+      await discoverInterfaces();
+    } catch (e) {
+      bgStatus = { online: false, error: `SNMP discovery failed: ${e.message}` };
+      console.error('[SNMP] Discovery error:', e.message);
+      return;
+    }
+  }
+
+  const oids = [];
+  const oidMap = {}; // oid string -> { ifaceId, direction }
+
+  config.interfaces.forEach(iface => {
+    const idx = ifIndexCache[iface.mk_name];
+    if (idx === undefined) return;
+
+    const rxOid = `${OID_IF_HC_IN}.${idx}`;
+    const txOid = `${OID_IF_HC_OUT}.${idx}`;
+    oids.push(rxOid, txOid);
+    oidMap[rxOid] = { ifaceId: iface.id, direction: 'rx' };
+    oidMap[txOid] = { ifaceId: iface.id, direction: 'tx' };
+  });
+
+  return new Promise((resolve) => {
+    const session = createSession();
+
+    session.get(oids, (error, varbinds) => {
+      session.close();
+
+      if (error) {
+        bgStatus = { online: false, error: error.message };
+        console.error('[SNMP] Poll error:', error.message);
+        resolve();
+        return;
+      }
+
+      bgStatus = { online: true, error: null };
+      const currentCounters = {};
+
+      varbinds.forEach(vb => {
+        if (snmp.isVarbindError(vb)) {
+          console.error('[SNMP] Varbind error:', snmp.varbindError(vb));
+          return;
+        }
+        const info = oidMap[vb.oid];
+        if (!info) return;
+
+        if (!currentCounters[info.ifaceId]) {
+          currentCounters[info.ifaceId] = { rx: BigInt(0), tx: BigInt(0) };
+        }
+
+        // net-snmp returns Counter64 as Buffer, convert to BigInt
+        let val;
+        if (Buffer.isBuffer(vb.value)) {
+          val = BigInt('0x' + vb.value.toString('hex'));
+        } else {
+          val = BigInt(vb.value.toString());
+        }
+
+        currentCounters[info.ifaceId][info.direction] = val;
+      });
+
+      // Calculate deltas
+      const localNow = new Date(Date.now() + 7 * 3600 * 1000);
+      const dateStr = localNow.toISOString().slice(0, 10);
+      const hourStr = localNow.toISOString().slice(11, 13);
+      const isNewDay = (localNow.getHours() === 0 && localNow.getMinutes() <= 1);
+
+      // Reset daily accumulator at midnight
+      if (isNewDay) {
+        const hasData = Object.keys(dailyAccum).length > 0;
+        if (hasData) {
+          let totalKb = 0;
+          config.interfaces.forEach(i => { totalKb += (dailyAccum[i.id]?.dl || 0) + (dailyAccum[i.id]?.ul || 0); });
+          if (totalKb > 0) {
+            console.log(`[SNMP] Midnight reset - new day ${dateStr}`);
+            dailyAccum = {};
+            config.interfaces.forEach(iface => {
+              dailyAccum[iface.id] = { dl: 0, ul: 0 };
+            });
+          }
+        }
+      }
+
+      config.interfaces.forEach(iface => {
+        const cur = currentCounters[iface.id];
+        const prev = prevCounters[iface.id];
+
+        if (!cur) return;
+
+        // Initialize accum if needed
+        if (!dailyAccum[iface.id]) {
+          dailyAccum[iface.id] = { dl: 0, ul: 0 };
+        }
+
+        if (prev) {
+          let deltaRx = cur.rx - prev.rx;
+          let deltaTx = cur.tx - prev.tx;
+
+          // Handle counter wrap/reset (router reboot)
+          if (deltaRx < 0n) deltaRx = cur.rx;
+          if (deltaTx < 0n) deltaTx = cur.tx;
+
+          // Convert bytes to KB
+          const dRxKb = Number(deltaRx / 1024n);
+          const dTxKb = Number(deltaTx / 1024n);
+
+          if (dRxKb > 0 || dTxKb > 0) {
+            dailyAccum[iface.id].dl += dRxKb;
+            dailyAccum[iface.id].ul += dTxKb;
+          }
+        }
+      });
+
+      // Update prevCounters
+      Object.keys(currentCounters).forEach(id => {
+        prevCounters[id] = { ...currentCounters[id] };
+      });
+
+      // Update todayData (same format as before for API compatibility)
+      todayData = { lastModified: localNow.toISOString().replace('T', ' ').slice(0, 19) };
+      config.interfaces.forEach(iface => {
+        todayData[iface.id] = {
+          dl: dailyAccum[iface.id]?.dl || 0,
+          ul: dailyAccum[iface.id]?.ul || 0
+        };
+      });
+
+      // Daily Snapshot
+      const prev_hist = history[dateStr];
+      const newSnap = {};
+      let dailyChanged = !prev_hist;
+
+      config.interfaces.forEach(iface => {
+        newSnap[iface.id] = { ...(dailyAccum[iface.id] || { dl: 0, ul: 0 }) };
+        if (prev_hist && (!prev_hist[iface.id] || prev_hist[iface.id].dl !== newSnap[iface.id].dl || prev_hist[iface.id].ul !== newSnap[iface.id].ul)) {
+          dailyChanged = true;
+        }
+      });
+
+      if (dailyChanged) {
+        history[dateStr] = newSnap;
+        saveHistory();
+      }
+
+      // Hourly Snapshot
+      const hourKey = `${dateStr}T${hourStr}`;
+      const prevHr = hourly[hourKey];
+      const newHrSnap = {};
+      let hrChanged = !prevHr;
+
+      config.interfaces.forEach(iface => {
+        newHrSnap[iface.id] = { ...(dailyAccum[iface.id] || { dl: 0, ul: 0 }) };
+        if (prevHr && (!prevHr[iface.id] || prevHr[iface.id].dl !== newHrSnap[iface.id].dl || prevHr[iface.id].ul !== newHrSnap[iface.id].ul)) {
+          hrChanged = true;
+        }
+      });
+
+      if (hrChanged) {
+        hourly[hourKey] = newHrSnap;
+        saveHourly();
+      }
+
+      resolve();
+    });
+  });
+}
+
+// --- REST API fallback for test-connection (keep HTTP for this) ---
+const http = require('http');
+function mtFetch(urlPath) {
   return new Promise((resolve, reject) => {
     const opts = {
-      hostname: MT_HOST, port: 80, path: `/rest${path}`,
+      hostname: MT_HOST, port: 80, path: `/rest${urlPath}`,
       method: 'GET',
       headers: { 'Authorization': MT_AUTH, 'Content-Type': 'application/json' },
       timeout: 5000
@@ -55,84 +299,16 @@ function mtFetch(path) {
   });
 }
 
-async function poll() {
-  try {
-    const trafficFile = await mtFetch('/file/traf-data.txt');
-    bgStatus = { online: true, error: null };
-    const contents = (trafficFile.contents || '').trim();
-    if (!contents) return;
-    const parts = contents.split(',').map(Number);
-
-    todayData = { lastModified: trafficFile['last-modified'] || null };
-    config.interfaces.forEach((iface, i) => {
-      todayData[iface.id] = {
-        dl: parts[i * 2] || 0,
-        ul: parts[i * 2 + 1] || 0
-      };
-    });
-
-    const localNow = new Date(Date.now() + 7 * 3600 * 1000);
-    const dateStr = localNow.toISOString().slice(0, 10);
-    const hourStr = localNow.toISOString().slice(11, 13);
-    const isResetWindow = (localNow.getHours() === 0 && localNow.getMinutes() <= 5);
-
-    // Daily Snapshot
-    const prev = history[dateStr];
-    const newSnap = {};
-    let dailyChanged = !prev;
-
-    config.interfaces.forEach(iface => {
-      newSnap[iface.id] = { ...todayData[iface.id] };
-      if (!isResetWindow && prev && prev[iface.id]) {
-        newSnap[iface.id].dl = Math.max(prev[iface.id].dl || 0, todayData[iface.id].dl);
-        newSnap[iface.id].ul = Math.max(prev[iface.id].ul || 0, todayData[iface.id].ul);
-      }
-      if (prev && (!prev[iface.id] || prev[iface.id].dl !== newSnap[iface.id].dl || prev[iface.id].ul !== newSnap[iface.id].ul)) {
-        dailyChanged = true;
-      }
-    });
-
-    if (dailyChanged) {
-      history[dateStr] = newSnap;
-      saveHistory();
-    }
-
-    // Hourly Snapshot
-    const hourKey = `${dateStr}T${hourStr}`;
-    const prevHr = hourly[hourKey];
-    const newHrSnap = {};
-    let hrChanged = !prevHr;
-
-    config.interfaces.forEach(iface => {
-      newHrSnap[iface.id] = { ...todayData[iface.id] };
-      if (!isResetWindow && prevHr && prevHr[iface.id]) {
-        newHrSnap[iface.id].dl = Math.max(prevHr[iface.id].dl || 0, todayData[iface.id].dl);
-        newHrSnap[iface.id].ul = Math.max(prevHr[iface.id].ul || 0, todayData[iface.id].ul);
-      }
-      if (prevHr && (!prevHr[iface.id] || prevHr[iface.id].dl !== newHrSnap[iface.id].dl || prevHr[iface.id].ul !== newHrSnap[iface.id].ul)) {
-        hrChanged = true;
-      }
-    });
-
-    if (hrChanged) {
-      hourly[hourKey] = newHrSnap;
-      saveHourly();
-    }
-
-  } catch(e) {
-    bgStatus = { online: false, error: e.message };
-    console.error('[Poll error]', e.message);
-  }
-}
-
-poll();
-setInterval(poll, 30000);
+// Initialize and start polling
+loadDailyAccum();
+pollSNMP();
+setInterval(pollSNMP, 30000);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/api/config', (req, res) => {
   res.json({
-    mikrotik: { ip: "" }, // Always return empty IP to keep UI blank as requested
+    mikrotik: { ip: "" },
     interfaces: config.interfaces
   });
 });
@@ -156,6 +332,12 @@ app.post('/api/config', express.json(), (req, res) => {
     }
     config.interfaces = newConfig.interfaces;
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+
+    // Reset SNMP discovery when config changes
+    ifIndexReady = false;
+    ifIndexCache = {};
+    prevCounters = {};
+
     res.json({ success: true });
   } catch(e) {
     res.status(500).json({ error: e.message });
@@ -169,7 +351,7 @@ app.post('/api/test-connection', express.json(), async (req, res) => {
   const testUser = req.body.user || MT_USER;
   const testPass = req.body.pass || MT_PASS;
   const testAuth = 'Basic ' + Buffer.from(`${testUser}:${testPass}`).toString('base64');
-  
+
   try {
     const opts = {
       hostname: testHost, port: 80, path: `/rest/system/identity`,
@@ -177,13 +359,27 @@ app.post('/api/test-connection', express.json(), async (req, res) => {
       headers: { 'Authorization': testAuth, 'Content-Type': 'application/json' },
       timeout: 3000
     };
-    
+
     const reqTest = http.request(opts, response => {
       let data = '';
       response.on('data', c => data += c);
       response.on('end', () => {
         if (response.statusCode >= 200 && response.statusCode < 300) {
-          res.json({ success: true, message: 'Kết nối MikroTik thành công!' });
+          // Also test SNMP connectivity
+          const testSession = snmp.createSession(testHost, SNMP_COMMUNITY, {
+            version: snmp.Version2c,
+            timeout: 3000,
+            retries: 0
+          });
+          testSession.get(['1.3.6.1.2.1.1.5.0'], (err, vbs) => { // sysName
+            testSession.close();
+            if (err) {
+              res.json({ success: true, message: `REST API OK! Nhưng SNMP lỗi: ${err.message}. Kiểm tra SNMP trên router.` });
+            } else {
+              const sysName = vbs[0]?.value?.toString() || 'unknown';
+              res.json({ success: true, message: `Kết nối thành công! REST API ✅ SNMP ✅ (${sysName})` });
+            }
+          });
         } else {
           try {
             const errBody = JSON.parse(data);
@@ -260,13 +456,13 @@ app.get('/api/hourly', (req, res) => {
   const localNow = new Date(Date.now() + 7 * 3600 * 1000);
   const defaultDay = localNow.toISOString().slice(0, 10);
   const targetDay = req.query.day || defaultDay;
-  
+
   const result = {};
-  
+
   for (let h = 0; h < 24; h++) {
     const hh = h.toString().padStart(2, '0');
     const curKey = `${targetDay}T${hh}`;
-    
+
     let baseline = null;
     for (let prevH = h - 1; prevH >= 0; prevH--) {
       const prevKey = `${targetDay}T${prevH.toString().padStart(2, '0')}`;
@@ -275,13 +471,11 @@ app.get('/api/hourly', (req, res) => {
         break;
       }
     }
-    
+
     let curSnap = hourly[curKey];
-    if (!curSnap && targetDay === defaultDay && hh > localNow.toISOString().slice(11, 13)) continue; 
+    if (!curSnap && targetDay === defaultDay && hh > localNow.toISOString().slice(11, 13)) continue;
 
     if (!baseline && curSnap) {
-      // Find the last snapshot of the previous day to use as baseline
-      // This prevents a huge traffic spike if the midnight reset was missed due to downtime
       const prevDate = new Date(new Date(targetDay).getTime() - 86400000).toISOString().slice(0, 10);
       for (let prevH = 23; prevH >= 0; prevH--) {
         const prevKey = `${prevDate}T${prevH.toString().padStart(2, '0')}`;
@@ -290,7 +484,7 @@ app.get('/api/hourly', (req, res) => {
           config.interfaces.forEach(i => {
             const cDl = curSnap[i.id] ? curSnap[i.id].dl : 0;
             const pDl = hourly[prevKey][i.id] ? hourly[prevKey][i.id].dl : 0;
-            if (cDl < pDl) isValid = false; // A reset happened, so this baseline is invalid
+            if (cDl < pDl) isValid = false;
           });
           if (isValid) baseline = hourly[prevKey];
           break;
@@ -317,8 +511,8 @@ app.get('/api/hourly', (req, res) => {
       };
     });
   }
-  
+
   res.json(result);
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log(`Traffic Dashboard running on http://192.168.69.5:${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`Traffic Dashboard (SNMP) running on http://192.168.69.5:${PORT}`));

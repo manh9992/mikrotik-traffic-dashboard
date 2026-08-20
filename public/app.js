@@ -338,34 +338,11 @@ setInterval(async () => {
 
 // Setup Modal logic
 function openSetupModal() {
-  let collectorScript = `:global trafDayRx; :global trafDayTx;\n`;
-  collectorScript += `:if ([:typeof $trafDayRx] != "array") do={ :set trafDayRx [:toarray ""] }\n`;
-  collectorScript += `:if ([:typeof $trafDayTx] != "array") do={ :set trafDayTx [:toarray ""] }\n\n`;
-  collectorScript += `:local wans { `;
-  collectorScript += appConfig.interfaces.map(i => `"${i.mk_name}"`).join('; ') + ` }\n`;
-  collectorScript += `:local dataStr ""\n\n`;
-  collectorScript += `:foreach wan in=$wans do={\n`;
-  collectorScript += `    :local rx [/interface get [find name=$wan] rx-byte]\n`;
-  collectorScript += `    :local tx [/interface get [find name=$wan] tx-byte]\n`;
-  collectorScript += `    :local prevRx ($trafDayRx->$wan)\n`;
-  collectorScript += `    :local prevTx ($trafDayTx->$wan)\n\n`;
-  collectorScript += `    :if ([:typeof $prevRx] = "nothing") do={\n`;
-  collectorScript += `        :set ($trafDayRx->$wan) $rx\n`;
-  collectorScript += `        :set ($trafDayTx->$wan) $tx\n`;
-  collectorScript += `        :set prevRx $rx; :set prevTx $tx\n    }\n\n`;
-  collectorScript += `    :local dRx 0; :local dTx 0\n`;
-  collectorScript += `    :if ($rx >= $prevRx) do={ :set dRx (($rx - $prevRx)/1024) } else={ :set dRx ($rx/1024) }\n`;
-  collectorScript += `    :if ($tx >= $prevTx) do={ :set dTx (($tx - $prevTx)/1024) } else={ :set dTx ($tx/1024) }\n\n`;
-  collectorScript += `    :if ($dataStr = "") do={ :set dataStr "$dRx,$dTx" } else={ :set dataStr "$dataStr,$dRx,$dTx" }\n}\n\n`;
-  collectorScript += `/file set [find name="traf-data.txt"] contents=$dataStr\n`;
-
-  let reporterScript = `/file set [find name="traf-data.txt"] contents="`;
-  reporterScript += appConfig.interfaces.map(() => "0,0").join(",") + `"\n`;
-  reporterScript += `:global trafDayRx [:toarray ""]\n`;
-  reporterScript += `:global trafDayTx [:toarray ""]\n`;
-
-  $('scriptCollector').value = collectorScript;
-  $('scriptReporter').value = reporterScript;
+  const serverIp = window.location.hostname || '192.168.69.5';
+  let snmpScript = `/snmp/set enabled=yes\n`;
+  snmpScript += `/snmp/community/set [find name="public"] addresses=${serverIp}/32\n`;
+  
+  $('scriptCollector').value = snmpScript;
   $('setupModal').style.display = "block";
 }
 
