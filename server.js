@@ -183,6 +183,14 @@ async function pollSNMP() {
           let totalKb = 0;
           config.interfaces.forEach(i => { totalKb += (dailyAccum[i.id]?.dl || 0) + (dailyAccum[i.id]?.ul || 0); });
           if (totalKb > 0) {
+            
+            // --- TELEGRAM INJECTION ---
+            try {
+              sendTelegramReports(localNow);
+            } catch (err) {
+              console.error("[TELEGRAM] Error scheduling reports:", err);
+            }
+            // --- END TELEGRAM INJECTION ---
             console.log(`[SNMP] Midnight reset - new day ${dateStr}`);
             dailyAccum = {};
             config.interfaces.forEach(iface => {
@@ -516,3 +524,114 @@ app.get('/api/hourly', (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => console.log(`Traffic Dashboard (SNMP) running on http://192.168.69.5:${PORT}`));
+
+
+// --- TELEGRAM REPORTING LOGIC ---
+const https = require('https');
+
+const TELEGRAM_BOT_TOKEN = config.telegram?.bot_token || "";
+const TELEGRAM_CHAT_ID = config.telegram?.chat_id || "";
+
+function formatGB(kb) {
+  if (!kb) return "0 GB";
+  const gb = kb / 1048576;
+  return gb.toFixed(1) + " GB";
+}
+
+function sendTelegramMsg(msg) {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
+  const data = JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: msg });
+  const options = {
+    hostname: 'api.telegram.org',
+    port: 443, family: 4,
+    path: `/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(data)
+    }
+  };
+  
+  const req = https.request(options, (res) => {
+    let d = '';
+    res.on('data', (c) => d += c);
+    res.on('end', () => console.log('[TELEGRAM] Response:', res.statusCode, d));
+  });
+
+  req.on('error', (e) => console.error('[TELEGRAM] Request Error:', e));
+  req.write(data);
+  req.end();
+}
+
+function sendTelegramReports(localNow) {
+  // localNow is e.g. 2026-08-22T00:00:xx
+  const yest = new Date(localNow.getTime() - 86400000);
+  const targetDateStr = yest.toISOString().slice(0, 10);
+  const targetMonth = targetDateStr.slice(0, 7); // e.g. "2026-08"
+  
+  const dailyData = history[targetDateStr] || {};
+  
+  // Calculate Monthly Totals
+  const monthlyData = {};
+  for (const k of Object.keys(history)) {
+    if (k.startsWith(targetMonth)) {
+      const d = history[k];
+      for (const iface of Object.keys(d)) {
+        if (!monthlyData[iface]) monthlyData[iface] = { dl: 0, ul: 0 };
+        monthlyData[iface].dl += d[iface].dl;
+        monthlyData[iface].ul += d[iface].ul;
+      }
+    }
+  }
+
+  // Build Identity & Uptime via REST API test if possible, or just default string
+  let identity = "RB5009UG";
+  let uptime = "N/A";
+
+  // Build Daily Message
+  let dFptDl = 0, dFptUl = 0, dVtlDl = 0, dVtlUl = 0;
+  if (dailyData['wan1']) { dFptDl = dailyData['wan1'].dl; dFptUl = dailyData['wan1'].ul; }
+  if (dailyData['wan2']) { dVtlDl = dailyData['wan2'].dl; dVtlUl = dailyData['wan2'].ul; }
+  const dTotDl = dFptDl + dVtlDl;
+  const dTotUl = dFptUl + dVtlUl;
+  const dTotAll = dTotDl + dTotUl;
+
+  let msgDay = `📊 Báo cáo lưu lượng internet ngày ${targetDateStr.split('-').reverse().join('/')}\n`;
+  msgDay += `🖥 ${identity} (Dashboard)\n`;
+  msgDay += `────────────────────\n`;
+  msgDay += `🌐 FPT: ⬇ ${formatGB(dFptDl)}  ⬆ ${formatGB(dFptUl)}\n`;
+  msgDay += `🌐 Viettel: ⬇ ${formatGB(dVtlDl)}  ⬆ ${formatGB(dVtlUl)}\n`;
+  msgDay += `────────────────────\n`;
+  msgDay += `📦 Tổng: ⬇ ${formatGB(dTotDl)}  ⬆ ${formatGB(dTotUl)}\n`;
+  msgDay += `💾 Tổng cộng: ${formatGB(dTotAll)}`;
+
+  sendTelegramMsg(msgDay);
+
+  // If today is the 1st of the month, also send the monthly report for the previous month
+  if (localNow.getDate() === 1) {
+    let mFptDl = 0, mFptUl = 0, mVtlDl = 0, mVtlUl = 0;
+    if (monthlyData['wan1']) { mFptDl = monthlyData['wan1'].dl; mFptUl = monthlyData['wan1'].ul; }
+    if (monthlyData['wan2']) { mVtlDl = monthlyData['wan2'].dl; mVtlUl = monthlyData['wan2'].ul; }
+    const mTotDl = mFptDl + mVtlDl;
+    const mTotUl = mFptUl + mVtlUl;
+    const mTotAll = mTotDl + mTotUl;
+
+    let msgMon = `📅 Báo cáo lưu lượng tháng ${targetMonth.split('-').reverse().join('/')}\n`;
+    msgMon += `🖥 ${identity} (Dashboard)\n`;
+    msgMon += `────────────────────\n`;
+    msgMon += `🌐 FPT: ⬇ ${formatGB(mFptDl)}  ⬆ ${formatGB(mFptUl)}\n`;
+    msgMon += `🌐 Viettel: ⬇ ${formatGB(mVtlDl)}  ⬆ ${formatGB(mVtlUl)}\n`;
+    msgMon += `────────────────────\n`;
+    msgMon += `📦 Tổng: ⬇ ${formatGB(mTotDl)}  ⬆ ${formatGB(mTotUl)}\n`;
+    msgMon += `💾 Tổng cộng: ${formatGB(mTotAll)}`;
+    
+    setTimeout(() => sendTelegramMsg(msgMon), 60000); // 1 minute delay (0h1p)
+  }
+}
+
+app.post('/api/trigger-telegram', (req, res) => {
+    // For manual triggering (testing)
+    const dt = new Date(Date.now() + 7 * 3600 * 1000);
+    sendTelegramReports(dt);
+    res.json({success: true, message: "Telegram sent!"});
+});

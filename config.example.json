@@ -1,16 +1,16 @@
 {
   "mikrotik": {
-    "ip": "192.168.69.1",
-    "user": "api-user",
+    "ip": "192.168.88.1",
+    "user": "admin",
     "pass": "password",
     "snmp_community": "public"
   },
+  "telegram": {
+    "bot_token": "",
+    "chat_id": ""
+  },
   "interfaces": [
-    {
-      "id": "wan1",
-      "label": "ISP 1",
-      "color": "#3b82f6",
-      "mk_name": "ether1-WAN"
-    }
+    { "id": "wan1", "label": "WAN 1", "color": "#ff7300", "mk_name": "ether1" },
+    { "id": "wan2", "label": "WAN 2", "color": "#ef4444", "mk_name": "ether2" }
   ]
 }
