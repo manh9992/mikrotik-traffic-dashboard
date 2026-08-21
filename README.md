@@ -1,22 +1,23 @@
-# MikroTik Traffic Dashboard v3.0
+# MikroTik Traffic Dashboard v3.0.1
 
 *Read this in other languages: [English](#english-version)*
 
-MikroTik Traffic Dashboard là một ứng dụng Node.js hiện đại, nhẹ nhàng dùng để theo dõi lưu lượng mạng (Download/Upload) của các đường truyền WAN trên Router MikroTik. Phiên bản 3.0 mang đến một bước đột phá lớn: **Chuyển đổi hoàn toàn sang cơ chế SNMP**, đọc dữ liệu trực tiếp từ RAM của router, giúp bảo vệ bộ nhớ NAND (zero NAND write) và tăng tốc độ cập nhật.
+MikroTik Traffic Dashboard là một ứng dụng Node.js hiện đại, nhẹ nhàng dùng để theo dõi lưu lượng mạng (Download/Upload) của các đường truyền WAN trên Router MikroTik. Phiên bản 3.x mang đến một bước đột phá lớn: **Chuyển đổi hoàn toàn sang cơ chế SNMP**, đọc dữ liệu trực tiếp từ RAM của router, giúp bảo vệ bộ nhớ NAND (zero NAND write) và tăng tốc độ cập nhật.
 
 ![Dashboard Preview](screenshot.png)
 
-## ✨ Điểm mới trong v3.0
-- **Cơ chế SNMP (Zero NAND Write)**: Đọc thông số lưu lượng (`tx-byte`, `rx-byte`) trực tiếp từ RAM của router thông qua SNMP. Hoàn toàn không ghi bất kỳ file nào lên bộ nhớ trong (NAND) của MikroTik.
-- **Tốc độ cập nhật cực nhanh**: Server tự động poll dữ liệu mỗi 30 giây thay vì 5 phút như bản cũ. Dữ liệu trên web tự động làm mới mỗi 1 phút.
-- **Không cần Script trên Router**: Bạn không cần tạo bất kỳ Script hay Scheduler nào trên RouterOS nữa. Trả lại sự sạch sẽ tuyệt đối cho cấu hình router của bạn.
-- **Đường truyền động**: Thêm bao nhiêu đường truyền tùy ý qua Giao diện Web. Hệ thống SNMP tự động quét (walk) và nhận diện đúng cổng (interface) trên router.
+## ✨ Điểm mới trong v3.0.1 (Tích hợp Bot Telegram)
+- **Tự động báo cáo qua Telegram**: Hệ thống tự động tổng hợp số liệu và gửi tin nhắn báo cáo lưu lượng hàng ngày vào đúng 00:00.
+- **Báo cáo tháng tự động**: Tự động chốt sổ và gửi báo cáo tổng kết tháng vào lúc 00:01 ngày mùng 1 hàng tháng.
+- **Không suy hao khi đổi Router**: Báo cáo Telegram giờ đây đọc dữ liệu từ chính Database nội bộ của Dashboard, không còn bị mất số liệu khi bạn thay đổi thiết bị MikroTik hay khởi động lại Router.
+- Sửa lỗi kết nối IPv6 khi kết nối tới API của Telegram.
 
 ## 🚀 Tính năng chính
 - **Theo dõi thời gian thực**: Biểu đồ tự động cập nhật liên tục.
 - **Phân tích lịch sử**: Xem lại dữ liệu đã sử dụng theo **Giờ**, **Ngày**, **Tháng** và **Năm**.
 - **Biểu đồ mượt mà**: Sử dụng Chart.js để vẽ biểu đồ sắc nét và tương tác tốt.
 - **Không cần cài đặt Database**: Dữ liệu được lưu thẳng vào file JSON nhẹ nhàng (`history.json`, `hourly.json`).
+- **Gửi cảnh báo Telegram**: Báo cáo tổng kết lưu lượng định kỳ hàng ngày và hàng tháng.
 
 ## ⚙️ Yêu cầu hệ thống
 - **Node.js** (phiên bản v14 trở lên)
@@ -35,46 +36,47 @@ MikroTik Traffic Dashboard là một ứng dụng Node.js hiện đại, nhẹ n
    npm install
    ```
 
-3. **Chạy server**:
+3. **Cấu hình (Bắt buộc cho chức năng Telegram)**:
+   Đổi tên file `config.example.json` thành `config.json` và điền Token/ChatID của Telegram Bot vào nếu bạn muốn nhận báo cáo:
+   ```bash
+   cp config.example.json config.json
+   nano config.json
+   ```
+
+4. **Chạy server**:
    ```bash
    node server.js
    ```
    *(Khuyên dùng `pm2` hoặc `systemd` để chạy ẩn 24/7).*
 
-4. **Truy cập Dashboard**:
+5. **Truy cập Dashboard**:
    Mở trình duyệt và vào địa chỉ `http://<ip-may-chu>:3001`.
 
-## 🌐 Hướng dẫn Cấu hình
-
-Việc thiết lập giờ đây cực kỳ đơn giản:
-
+## 🌐 Hướng dẫn Cấu hình Web
 1. Bấm nút **"Hệ thống"** ở góc phải màn hình.
 2. Nhập địa chỉ IP, User và Password của Router.
-3. Bấm **"+ Thêm đường truyền"** để định nghĩa các mạng bạn có:
-   - **ID (Mã)**: Mã nội bộ (VD: `wan1`)
-   - **Tên hiển thị**: Tên hiện trên Dashboard (VD: `VNPT`)
-   - **Màu sắc**: Chọn màu biểu đồ bạn thích
-   - **Tên interface MikroTik**: Tên interface chuẩn xác trong Winbox (VD: `ether1-WAN`)
+3. Bấm **"+ Thêm đường truyền"** để định nghĩa các mạng bạn có.
 4. Bấm **Lưu cấu hình**. Trang web sẽ tự động khởi động lại.
 5. Bấm nút **"Cài đặt MikroTik"** để copy lệnh bật SNMP dán vào Terminal của Winbox là xong!
 
 ---
 
-<h1 id="english-version">MikroTik Traffic Dashboard v3.0 (English)</h1>
+<h1 id="english-version">MikroTik Traffic Dashboard v3.0.1 (English)</h1>
 
-MikroTik Traffic Dashboard is a lightweight, modern, and dynamic Node.js dashboard designed to monitor your MikroTik Router's WAN traffic (Download/Upload). Version 3.0 introduces a massive upgrade: **A complete shift to SNMP**, fetching data directly from the router's RAM, ensuring zero NAND writes and significantly faster update intervals.
+MikroTik Traffic Dashboard is a lightweight, modern, and dynamic Node.js dashboard designed to monitor your MikroTik Router's WAN traffic (Download/Upload). Version 3.x introduces a massive upgrade: **A complete shift to SNMP**, fetching data directly from the router's RAM, ensuring zero NAND writes and significantly faster update intervals.
 
-## ✨ New in v3.0
-- **SNMP Engine (Zero NAND Write)**: Reads traffic counters (`tx-byte`, `rx-byte`) directly from the router's RAM via SNMP. Absolutely no file writes to the MikroTik's flash memory.
-- **Lightning Fast Updates**: The backend polls data every 30 seconds (up from 5 minutes). The web UI automatically refreshes every minute.
-- **No RouterOS Scripts Needed**: You no longer need to install clunky scripts or schedulers on your router.
-- **Dynamic Interfaces**: Add any number of WAN links via the Web UI. The SNMP engine automatically discovers and binds to the correct interfaces.
+## ✨ New in v3.0.1 (Telegram Bot Integration)
+- **Automated Telegram Reports**: Automatically compiles and sends daily traffic reports at exactly 00:00.
+- **Monthly Reports**: Automatically sends a summarized monthly report on the 1st of every month at 00:01.
+- **Hardware Agnostic**: Telegram reports now rely on the Dashboard's internal database. Swapping or rebooting your MikroTik router will no longer reset your historical reporting data.
+- Fixed IPv6 connection issues when reaching the Telegram API.
 
 ## 🚀 Features
 - **Real-time Monitoring**: Automatically fetches traffic snapshots.
 - **Historical Analysis**: View traffic usage by **Hour**, **Day**, **Month**, and **Year**.
 - **Interactive Charts**: Powered by Chart.js for beautiful, responsive data visualization.
 - **Zero Database Setup**: Uses lightweight JSON flat-file storage (`history.json`, `hourly.json`).
+- **Telegram Notifications**: Scheduled daily and monthly traffic summaries.
 
 ## ⚙️ Requirements
 - **Node.js** (v14 or higher)
@@ -93,12 +95,19 @@ MikroTik Traffic Dashboard is a lightweight, modern, and dynamic Node.js dashboa
    npm install
    ```
 
-3. **Start the server**:
+3. **Configuration (Required for Telegram)**:
+   Rename `config.example.json` to `config.json` and enter your Telegram Bot Token and Chat ID if you want to receive reports:
+   ```bash
+   cp config.example.json config.json
+   nano config.json
+   ```
+
+4. **Start the server**:
    ```bash
    node server.js
    ```
 
-4. **Access the Dashboard**:
+5. **Access the Dashboard**:
    Open your browser and navigate to `http://<your-server-ip>:3001`.
 
 ## 🌐 Configuration Guide
